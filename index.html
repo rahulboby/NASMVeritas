@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>i386 Step Debugger</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #111a2d;
+      --panel-2: #0e1728;
+      --line: #25334b;
+      --text: #e6edf7;
+      --muted: #91a1b8;
+      --accent: #60d6c3;
+      --blue: #70a7ff;
+      --changed: #f7bd4a;
+      --danger: #ff8585;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 30% -20%, #172440, var(--bg) 60%);
+      color: var(--text);
+      font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, textarea { font: inherit; }
+    .app { max-width: 1600px; margin: auto; padding: 22px 26px 30px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 20px; margin-bottom: 20px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      display: grid; place-items: center; width: 40px; height: 40px;
+      border: 1px solid #2d5264; border-radius: 12px; color: var(--accent);
+      background: #102b35; font: 700 15px ui-monospace, monospace;
+    }
+    h1 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+    .subtitle { color: var(--muted); font-size: 12px; }
+    .actions { display: flex; align-items: center; gap: 9px; }
+    button {
+      border: 1px solid var(--line); border-radius: 8px; padding: 9px 13px;
+      color: var(--text); background: #17233a; cursor: pointer;
+      transition: background .15s, border-color .15s, transform .12s;
+    }
+    button:hover:not(:disabled) { background: #21314c; border-color: #45617e; }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: .46; cursor: not-allowed; }
+    .primary { color: #071915; border-color: var(--accent); background: var(--accent); font-weight: 700; }
+    .primary:hover:not(:disabled) { background: #7be6d4; }
+    .step-button { border-color: #386690; background: #193553; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(440px, .95fr); gap: 16px; }
+    .panel {
+      min-width: 0; border: 1px solid var(--line); border-radius: 13px;
+      background: linear-gradient(160deg, rgba(20,31,51,.98), rgba(13,22,38,.98));
+      box-shadow: 0 12px 35px #0003; overflow: hidden;
+    }
+    .panel-head {
+      height: 50px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; border-bottom: 1px solid var(--line);
+    }
+    .panel-title { font-size: 13px; font-weight: 650; }
+    .panel-hint { color: var(--muted); font-size: 11px; }
+    .editor-wrap { height: min(68vh, 690px); min-height: 390px; position: relative; }
+    #editor {
+      width: 100%; height: 100%; resize: vertical; display: block; padding: 18px 20px;
+      border: 0; outline: 0; background: #0b1424; color: #d7e5f7;
+      font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      tab-size: 4; white-space: pre; overflow: auto;
+    }
+    #editor::placeholder { color: #687b96; }
+    .editor-wrap.dragging::after {
+      content: "Drop .s assembly file"; position: absolute; inset: 12px;
+      display: grid; place-items: center; border: 2px dashed var(--accent);
+      border-radius: 10px; background: #0d1d2be8; color: var(--accent);
+      font-size: 17px; font-weight: 700; pointer-events: none;
+    }
+    .editor-footer {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px;
+    }
+    .right-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .register-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px; padding: 13px;
+    }
+    .register {
+      min-width: 0; padding: 10px; border: 1px solid #263750;
+      border-radius: 9px; background: #0c1627;
+    }
+    .reg-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .reg-name { color: var(--blue); font: 700 12px ui-monospace, monospace; letter-spacing: .04em; }
+    .reg-value { color: #cad7e8; font: 11px ui-monospace, monospace; }
+    .byte-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+    .byte {
+      padding: 5px 2px 4px; text-align: center; border: 1px solid #26364f;
+      border-radius: 5px; background: #121f33; color: #dce8f8;
+      font: 12px ui-monospace, monospace; transition: background .2s, border-color .2s, color .2s;
+    }
+    .byte.changed { border-color: var(--changed); background: #58421c; color: #ffe2a1; animation: flash .8s ease-out; }
+    @keyframes flash { from { box-shadow: 0 0 14px #f7bd4a99; } to { box-shadow: 0 0 0 transparent; } }
+    .sub-labels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
+    .sub-labels span { color: #71839d; text-align: center; font-size: 9px; line-height: 1.25; }
+    .legend { padding: 0 14px 12px; color: var(--muted); font-size: 10px; }
+    .legend b { color: #b7c8dd; }
+    .code-output { height: 250px; overflow: auto; padding: 9px 0; background: #0a1322; }
+    .instruction {
+      display: grid; grid-template-columns: 102px 1fr; gap: 12px;
+      padding: 3px 14px; color: #c8d6e8;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    .instruction .address { color: #7187a6; }
+    .instruction.current { background: #153446; box-shadow: inset 3px 0 var(--accent); color: #bff9ed; }
+    .instruction.current .address { color: var(--accent); }
+    .empty-state { padding: 25px 18px; color: #788aa3; text-align: center; font-size: 12px; }
+    .statusbar {
+      display: flex; justify-content: space-between; gap: 12px; align-items: center;
+      min-height: 37px; padding: 8px 14px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 11px;
+    }
+    .status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #8290a2; }
+    .status-dot.live { background: var(--accent); box-shadow: 0 0 8px #60d6c3aa; }
+    .status-dot.error { background: var(--danger); }
+    #message { overflow-wrap: anywhere; }
+    .error-text { color: var(--danger); }
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 4; display: none; place-items: center;
+      padding: 18px; background: #050912c9;
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal {
+      width: min(400px, 100%); padding: 20px; border: 1px solid #31435d;
+      border-radius: 12px; background: #111b2d; box-shadow: 0 20px 70px #0009;
+    }
+    .modal h2 { margin: 0 0 13px; font-size: 16px; }
+    .shortcut { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid #25334b; color: #b6c4d6; }
+    kbd { border: 1px solid #44536b; border-radius: 5px; padding: 2px 7px; color: #e5eef9; background: #1b2940; font: 11px ui-monospace, monospace; }
+    .modal-bottom { display: flex; justify-content: flex-end; margin-top: 14px; }
+    @media (max-width: 930px) {
+      .workspace { grid-template-columns: 1fr; }
+      .editor-wrap { height: 48vh; min-height: 300px; }
+      .right-column { display: grid; grid-template-columns: 1fr; }
+    }
+    @media (max-width: 540px) {
+      .app { padding: 14px 11px 22px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .actions { width: 100%; flex-wrap: wrap; }
+      .actions button { flex: 1; padding-inline: 8px; }
+      .workspace { gap: 11px; }
+      .register-grid { gap: 7px; padding: 9px; }
+      .register { padding: 8px; }
+      .instruction { grid-template-columns: 84px 1fr; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">x86</div>
+        <div><h1>i386 Step Debugger</h1><div class="subtitle">Visual instruction-level assembly debugger</div></div>
+      </div>
+      <div class="actions">
+        <button id="helpButton" type="button" aria-haspopup="dialog">Helper / Shortcuts</button>
+        <button id="resetButton" type="button" disabled>Stop / Reset</button>
+        <button id="stepButton" class="step-button" type="button" disabled>Step Instruction</button>
+        <button id="buildButton" class="primary" type="button">Build &amp; Debug</button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <section class="panel">
+        <div class="panel-head"><span class="panel-title">Assembly source</span><span class="panel-hint">NASM · 32-bit Intel syntax</span></div>
+        <div class="editor-wrap" id="dropZone">
+          <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source code"></textarea>
+        </div>
+        <div class="editor-footer"><span>Drop a <code>.s</code> file here to load it</span><span>Ctrl/⌘ + Enter to build</span></div>
+      </section>
+
+      <div class="right-column">
+        <section class="panel">
+          <div class="panel-head"><span class="panel-title">32-bit registers</span><span class="panel-hint">Changed bytes flash amber</span></div>
+          <div class="register-grid" id="registers"></div>
+          <div class="legend"><b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. For EAX: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.</div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span class="panel-title">Instruction stream</span><span class="panel-hint" id="pcLabel">EIP —</span></div>
+          <div class="code-output" id="instructions"><div class="empty-state">Build a program to see its instructions.</div></div>
+          <div class="statusbar"><span><i class="status-dot" id="statusDot"></i><span id="status">Ready</span></span><span id="message"></span></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <h2 id="modalTitle">Keyboard shortcuts</h2>
+      <div class="shortcut"><span>Step one instruction</span><span><kbd>Space</kbd> or <kbd>→</kbd></span></div>
+      <div class="shortcut"><span>Build &amp; debug source</span><span><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd></span></div>
+      <div class="shortcut"><span>Close this dialog</span><span><kbd>Esc</kbd></span></div>
+      <div class="modal-bottom"><button id="closeHelp" type="button">Close</button></div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const editor = document.getElementById("editor");
+      const registersEl = document.getElementById("registers");
+      const instructionsEl = document.getElementById("instructions");
+      const stepButton = document.getElementById("stepButton");
+      const resetButton = document.getElementById("resetButton");
+      const buildButton = document.getElementById("buildButton");
+      const statusEl = document.getElementById("status");
+      const statusDot = document.getElementById("statusDot");
+      const messageEl = document.getElementById("message");
+      const pcLabel = document.getElementById("pcLabel");
+      const dropZone = document.getElementById("dropZone");
+      const helpModal = document.getElementById("helpModal");
+      const registerNames = ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi", "eflags"];
+      let previousRegisters = null;
+      let active = false;
+      let busy = false;
+
+      function setStatus(text, kind = "") {
+        statusEl.textContent = text;
+        statusDot.className = "status-dot" + (kind ? " " + kind : "");
+      }
+
+      function showMessage(text = "", isError = false) {
+        messageEl.textContent = text;
+        messageEl.className = isError ? "error-text" : "";
+      }
+
+      async function request(path, payload) {
+        const options = { method: "POST", headers: { "Content-Type": "application/json" } };
+        if (payload !== undefined) options.body = JSON.stringify(payload);
+        const response = await fetch(path, options);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        return data;
+      }
+
+      function setBusy(value) {
+        busy = value;
+        buildButton.disabled = value;
+        stepButton.disabled = value || !active;
+        resetButton.disabled = value || !active;
+      }
+
+      function makeRegisterCards() {
+        registersEl.replaceChildren();
+        for (const name of registerNames) {
+          const card = document.createElement("div");
+          card.className = "register";
+          card.dataset.register = name;
+          card.innerHTML = `<div class="reg-head"><span class="reg-name">${name.toUpperCase()}</span><span class="reg-value">0x--------</span></div>
+            <div class="byte-row">${[0, 1, 2, 3].map(() => '<span class="byte">--</span>').join("")}</div>
+            <div class="sub-labels"><span>bits 31–24</span><span>bits 23–16</span><span>bits 15–8</span><span>bits 7–0</span></div>`;
+          registersEl.append(card);
+        }
+      }
+
+      function renderRegisters(values) {
+        if (!values) return;
+        for (const name of registerNames) {
+          const value = Number(values[name]) >>> 0;
+          const before = previousRegisters && Number(previousRegisters[name]) >>> 0;
+          const card = registersEl.querySelector(`[data-register="${name}"]`);
+          card.querySelector(".reg-value").textContent = `0x${value.toString(16).padStart(8, "0")}`;
+          const bytes = card.querySelectorAll(".byte");
+          for (let index = 0; index < 4; index++) {
+            const shift = (3 - index) * 8;
+            const byte = (value >>> shift) & 0xff;
+            bytes[index].textContent = byte.toString(16).padStart(2, "0").toUpperCase();
+            bytes[index].classList.toggle("changed", before !== undefined && ((before >>> shift) & 0xff) !== byte);
+          }
+        }
+        previousRegisters = { ...values };
+      }
+
+      function renderInstructions(data) {
+        const items = data.instructions || [];
+        instructionsEl.replaceChildren();
+        if (!items.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.textContent = data.status === "exited" ? "Program exited." : "No instructions available at this address.";
+          instructionsEl.append(empty);
+        } else {
+          for (const item of items) {
+            const row = document.createElement("div");
+            row.className = "instruction" + (item.address === data.eip ? " current" : "");
+            const address = document.createElement("span");
+            address.className = "address";
+            address.textContent = `0x${Number(item.address).toString(16).padStart(8, "0")}`;
+            const instruction = document.createElement("span");
+            instruction.textContent = item.text;
+            row.append(address, instruction);
+            instructionsEl.append(row);
+          }
+        }
+        pcLabel.textContent = data.eip == null ? "EIP —" : `EIP 0x${Number(data.eip).toString(16).padStart(8, "0")}`;
+        const current = instructionsEl.querySelector(".current");
+        if (current) current.scrollIntoView({ block: "nearest" });
+      }
+
+      function showState(data) {
+        if (data.registers && Object.keys(data.registers).length) renderRegisters(data.registers);
+        renderInstructions(data);
+        if (data.status === "exited") {
+          active = false;
+          setStatus("Program exited");
+        } else {
+          active = true;
+          setStatus("Paused", "live");
+        }
+        setBusy(false);
+      }
+
+      async function build() {
+        if (busy) return;
+        setBusy(true);
+        showMessage("");
+        setStatus("Building…");
+        previousRegisters = null;
+        try {
+          const data = await request("/api/build", { code: editor.value });
+          showState(data);
+          showMessage(data.status === "paused" ? "Ready to step" : "");
+        } catch (error) {
+          active = false;
+          setBusy(false);
+          setStatus("Build failed", "error");
+          showMessage(error.message, true);
+        }
+      }
+
+      async function step() {
+        if (!active || busy) return;
+        setBusy(true);
+        showMessage("");
+        try {
+          showState(await request("/api/step"));
+        } catch (error) {
+          active = false;
+          setBusy(false);
+          setStatus("Debugger error", "error");
+          showMessage(error.message, true);
+        }
+      }
+
+      async function reset() {
+        if (busy) return;
+        setBusy(true);
+        try {
+          await request("/api/reset");
+          active = false;
+          previousRegisters = null;
+          makeRegisterCards();
+          instructionsEl.innerHTML = '<div class="empty-state">Build a program to see its instructions.</div>';
+          pcLabel.textContent = "EIP —";
+          showMessage("");
+          setStatus("Ready");
+        } catch (error) {
+          setStatus("Reset failed", "error");
+          showMessage(error.message, true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      buildButton.addEventListener("click", build);
+      stepButton.addEventListener("click", step);
+      resetButton.addEventListener("click", reset);
+      document.getElementById("helpButton").addEventListener("click", () => helpModal.classList.add("open"));
+      document.getElementById("closeHelp").addEventListener("click", () => helpModal.classList.remove("open"));
+      helpModal.addEventListener("click", event => {
+        if (event.target === helpModal) helpModal.classList.remove("open");
+      });
+
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape") helpModal.classList.remove("open");
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault();
+          build();
+        } else if (event.key === "Tab" && event.target === editor) {
+          event.preventDefault();
+          const start = editor.selectionStart;
+          const end = editor.selectionEnd;
+          editor.setRangeText("    ", start, end, "end");
+        } else if ((event.code === "Space" || event.key === "ArrowRight") &&
+                   !["TEXTAREA", "INPUT"].includes(document.activeElement.tagName) &&
+                   !helpModal.classList.contains("open")) {
+          event.preventDefault();
+          step();
+        }
+      });
+
+      for (const eventName of ["dragenter", "dragover"]) {
+        dropZone.addEventListener(eventName, event => {
+          event.preventDefault();
+          dropZone.classList.add("dragging");
+        });
+      }
+      for (const eventName of ["dragleave", "drop"]) {
+        dropZone.addEventListener(eventName, event => {
+          event.preventDefault();
+          dropZone.classList.remove("dragging");
+        });
+      }
+      dropZone.addEventListener("drop", async event => {
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith(".s")) {
+          showMessage("Drop a file with the .s extension.", true);
+          return;
+        }
+        try {
+          editor.value = await file.text();
+          showMessage(`Loaded ${file.name}`);
+        } catch (error) {
+          showMessage(`Could not read file: ${error.message}`, true);
+        }
+      });
+
+      makeRegisterCards();
+    })();
+  </script>
+</body>
+</html>
