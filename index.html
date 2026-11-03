@@ -60,7 +60,7 @@
     .step-button { border-color: #386690; background: #193553; }
     .workspace {
       /* Width ratios: edit the three values below for different percentages
-         (e.g. 30fr, 45fr, 25fr). Defaults are 35:45:25, normalized to fit. */
+         (e.g. 35fr, 40fr, 25fr). Defaults are 35:40:30, normalized to fit. */
       --source-width: 35fr;
       --register-width: 40fr;
       --instruction-width: 30fr;
@@ -282,6 +282,7 @@
       };
       let previousRegisters = null;
       let active = false;
+      let hasSession = false;
       let busy = false;
       let resizeDrag = null;
 
@@ -369,7 +370,7 @@
         busy = value;
         buildButton.disabled = value;
         stepButton.disabled = value || !active;
-        resetButton.disabled = value || !active;
+        resetButton.disabled = value || !hasSession;
         architectureSelect.disabled = value || active;
       }
 
@@ -431,7 +432,9 @@
         if (!items.length) {
           const empty = document.createElement("div");
           empty.className = "empty-state";
-          empty.textContent = data.status === "exited" ? "Program exited." : "No instructions available at this address.";
+          empty.textContent = data.status === "signal_exit"
+            ? `Program terminated${data.signal_name ? ` (${data.signal_name})` : ""}.`
+            : data.status === "exited" ? "Program exited." : "No instructions available at this address.";
           instructionsEl.append(empty);
         } else {
           for (const item of items) {
@@ -455,6 +458,7 @@
       }
 
       function showState(data) {
+        hasSession = true;
         if (data.architecture && architectureSelect.value !== data.architecture) {
           architectureSelect.value = data.architecture;
           makeRegisterCards(data.architecture);
@@ -464,9 +468,17 @@
           renderRegisters(data.registers, data.architecture || architectureSelect.value);
         }
         renderInstructions(data);
-        if (data.status === "exited") {
+        if (data.status === "signal_exit") {
+          active = false;
+          setStatus(`Terminated (${data.signal_name || "signal"})`, "error");
+          showMessage(data.signal_meaning || "The program terminated after receiving a signal.");
+        } else if (data.status === "exited") {
           active = false;
           setStatus("Program exited");
+        } else if (data.signal_name) {
+          active = true;
+          setStatus(`Stopped on ${data.signal_name}`, "error");
+          showMessage(`${data.signal_meaning || "Program stopped on a signal."} Step again to deliver it, or reset.`);
         } else {
           active = true;
           setStatus("Paused", "live");
@@ -489,6 +501,7 @@
           showMessage(data.status === "paused" ? "Ready to step" : "");
         } catch (error) {
           active = false;
+          hasSession = false;
           setBusy(false);
           setStatus("Build failed", "error");
           showMessage(error.message, true);
@@ -515,6 +528,7 @@
         try {
           await request("/api/reset");
           active = false;
+          hasSession = false;
           previousRegisters = null;
           makeRegisterCards();
           instructionsEl.innerHTML = '<div class="empty-state">Build a program to see its instructions.</div>';

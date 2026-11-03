@@ -37,6 +37,49 @@ ARCHITECTURES = {
     },
 }
 INDEX_FILE = Path(__file__).with_name("index.html")
+MI_INTEGER_PATTERN = re.compile(r"^\s*([+-]?(?:0[xX][0-9a-fA-F]+|[0-9]+))")
+
+
+def parse_mi_integer(value):
+    """Parse GDB's decimal/hex MI values, including signed and zero-padded decimals."""
+    match = MI_INTEGER_PATTERN.match(value)
+    if not match:
+        raise ValueError(f"Not an integer GDB value: {value!r}")
+    token = match.group(1)
+    sign = -1 if token.startswith("-") else 1
+    digits = token.lstrip("+-")
+    base = 16 if digits.lower().startswith("0x") else 10
+    return sign * int(digits, base)
+
+
+def stopped_info(lines):
+    line = next((line for line in lines if line.startswith("*stopped,")), "")
+    reason = re.search(r'(?:^|,)reason="([^"]+)"', line)
+    signal_name = re.search(r'(?:^|,)signal-name="([^"]+)"', line)
+    signal_meaning = re.search(r'(?:^|,)signal-meaning="((?:\\.|[^"\\])*)"', line)
+    return {
+        "reason": reason.group(1) if reason else None,
+        "signal_name": signal_name.group(1) if signal_name else None,
+        "signal_meaning": (
+            json.loads('"' + signal_meaning.group(1) + '"') if signal_meaning else None
+        ),
+    }
+
+
+def exited_state(architecture, stop):
+    state = {
+        "status": "signal_exit" if stop["reason"] == "exited-signalled" else "exited",
+        "architecture": architecture,
+        "registers": {},
+        "instructions": [],
+        "pc_name": ARCHITECTURES[architecture]["pc"],
+        "pc": None,
+    }
+    if stop["signal_name"]:
+        state["signal_name"] = stop["signal_name"]
+    if stop["signal_meaning"]:
+        state["signal_meaning"] = stop["signal_meaning"]
+    return state
 
 
 class GdbSession:
@@ -115,10 +158,11 @@ class GdbSession:
             value = re.search(r'value="([^"]+)"', "\n".join(lines))
             if not value:
                 raise RuntimeError(f"GDB did not return ${register}.")
-            number = re.match(r"(?:0x[0-9a-fA-F]+|[0-9]+)", value.group(1))
-            if not number:
-                raise RuntimeError(f"GDB returned an invalid ${register} value.")
-            number = int(number.group(0), 0) & ((1 << bits) - 1)
+            try:
+                number = parse_mi_integer(value.group(1))
+            except ValueError as error:
+                raise RuntimeError(f"GDB returned an invalid ${register} value.") from error
+            number &= (1 << bits) - 1
             values[register] = number if bits == 32 else f"0x{number:016x}"
 
         pc_name = config["pc"]
@@ -222,14 +266,15 @@ class Debugger:
             self.gdb.command("-gdb-set disassembly-flavor intel")
             self.gdb.command("-break-insert _start")
             lines = self.gdb.command("-exec-run", wait_for_stop=True)
-            stop = next((line for line in lines if line.startswith("*stopped,")), "")
-            self.exited = 'reason="exited-normally"' in stop or 'reason="exited"' in stop
+            stop = stopped_info(lines)
+            self.exited = stop["reason"] in ("exited-normally", "exited", "exited-signalled")
             if self.exited:
-                return {
-                    "status": "exited", "architecture": architecture, "registers": {},
-                    "instructions": [], "pc_name": config["pc"], "pc": None,
-                }
-            return {"status": "paused", **self.gdb.state()}
+                return exited_state(architecture, stop)
+            state = {"status": "paused", **self.gdb.state()}
+            if stop["signal_name"]:
+                state["signal_name"] = stop["signal_name"]
+                state["signal_meaning"] = stop["signal_meaning"]
+            return state
         except Exception:
             self.reset()
             raise
@@ -245,15 +290,15 @@ class Debugger:
                     "instructions": [], "pc_name": config["pc"], "pc": None,
                 }
             lines = self.gdb.command("-exec-step-instruction", wait_for_stop=True)
-            stop = next((line for line in lines if line.startswith("*stopped,")), "")
-            self.exited = 'reason="exited-normally"' in stop or 'reason="exited"' in stop
+            stop = stopped_info(lines)
+            self.exited = stop["reason"] in ("exited-normally", "exited", "exited-signalled")
             if self.exited:
-                config = ARCHITECTURES[self.architecture]
-                return {
-                    "status": "exited", "architecture": self.architecture, "registers": {},
-                    "instructions": [], "pc_name": config["pc"], "pc": None,
-                }
-            return {"status": "paused", **self.gdb.state()}
+                return exited_state(self.architecture, stop)
+            state = {"status": "paused", **self.gdb.state()}
+            if stop["signal_name"]:
+                state["signal_name"] = stop["signal_name"]
+                state["signal_meaning"] = stop["signal_meaning"]
+            return state
 
 
 debugger = Debugger()

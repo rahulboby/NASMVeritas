@@ -54,8 +54,8 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Select
 On wide screens, the editor, register view, and instruction stream appear in
 that order from left to right. Drag either divider to resize neighboring
 panels. At narrower viewport sizes the panels stack vertically.
-The initial width weights are 35:45:25; they are normalized to fit because
-the requested widths add up to more than 100%.
+The initial width weights are 35:40:30; they are normalized to fit because
+the ratios add up to more than 100%.
 
 ## Example programs
 
@@ -100,6 +100,20 @@ The x86-64 view includes RAX–RDI, R8–R15, and RFLAGS. Each register is split
 into 8-bit hex blocks in most-significant-to-least-significant order. For
 example, the low 32 bits of RAX are EAX, its low 16 bits are AX, and its low
 two bytes can be addressed as AH and AL.
+
+Signed results are shown as their fixed-width hexadecimal register values
+(for example, `-2` in EAX appears as `0xfffffffe`). If an instruction stops
+the program on a signal, the debugger reports the signal and preserves the
+stopped register state; stepping again delivers the signal to the process.
+
+## Run tests
+
+The numeric parsing and GDB stop-state regression tests use Python's built-in
+`unittest` runner:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
 
 ## Security note
 
