@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>i386 Step Debugger</title>
+  <title>x86 Assembly Step Debugger</title>
   <style>
     :root {
       color-scheme: dark;
@@ -27,8 +27,8 @@
       color: var(--text);
       font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
-    button, textarea { font: inherit; }
-    .app { max-width: 1600px; margin: auto; padding: 22px 26px 30px; }
+    button, textarea, select { font: inherit; }
+    .app { width: 100%; min-height: 100vh; padding: 22px 26px 30px; }
     header {
       display: flex; align-items: center; justify-content: space-between;
       gap: 20px; margin-bottom: 20px;
@@ -50,10 +50,28 @@
     button:hover:not(:disabled) { background: #21314c; border-color: #45617e; }
     button:active:not(:disabled) { transform: translateY(1px); }
     button:disabled { opacity: .46; cursor: not-allowed; }
+    select {
+      border: 1px solid var(--line); border-radius: 8px; padding: 9px 30px 9px 11px;
+      color: var(--text); background: #17233a; cursor: pointer;
+    }
+    select:disabled { opacity: .55; cursor: not-allowed; }
     .primary { color: #071915; border-color: var(--accent); background: var(--accent); font-weight: 700; }
     .primary:hover:not(:disabled) { background: #7be6d4; }
     .step-button { border-color: #386690; background: #193553; }
-    .workspace { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(440px, .95fr); gap: 16px; }
+    .workspace {
+      /* Width ratios: edit the three values below for different percentages
+         (e.g. 30fr, 45fr, 25fr). Defaults are 35:45:25, normalized to fit. */
+      --source-width: 35fr;
+      --register-width: 40fr;
+      --instruction-width: 30fr;
+      display: grid;
+      grid-template-columns:
+        minmax(0, var(--source-width)) 8px
+        minmax(0, var(--register-width)) 8px
+        minmax(0, var(--instruction-width));
+      gap: 8px;
+      align-items: stretch;
+    }
     .panel {
       min-width: 0; border: 1px solid var(--line); border-radius: 13px;
       background: linear-gradient(160deg, rgba(20,31,51,.98), rgba(13,22,38,.98));
@@ -65,6 +83,7 @@
     }
     .panel-title { font-size: 13px; font-weight: 650; }
     .panel-hint { color: var(--muted); font-size: 11px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     .editor-wrap { height: min(68vh, 690px); min-height: 390px; position: relative; }
     #editor {
       width: 100%; height: 100%; resize: vertical; display: block; padding: 18px 20px;
@@ -83,9 +102,22 @@
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 10px 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px;
     }
-    .right-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .splitter {
+      position: relative; z-index: 1; cursor: col-resize; touch-action: none;
+      outline: none;
+    }
+    .splitter::after {
+      content: ""; position: absolute; top: 8px; bottom: 8px; left: 3px; width: 2px;
+      border-radius: 2px; background: #30425d; transition: background .15s, width .15s, left .15s;
+    }
+    .splitter:hover::after, .splitter:focus-visible::after, .workspace.resizing .splitter::after {
+      left: 2px; width: 4px; background: var(--accent);
+    }
+    .workspace.resizing { cursor: col-resize; user-select: none; }
+    .workspace.resizing textarea { pointer-events: none; }
+    .instruction-panel { display: flex; flex-direction: column; min-height: 390px; }
     .register-grid {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 9px; padding: 13px;
     }
     .register {
@@ -107,7 +139,7 @@
     .sub-labels span { color: #71839d; text-align: center; font-size: 9px; line-height: 1.25; }
     .legend { padding: 0 14px 12px; color: var(--muted); font-size: 10px; }
     .legend b { color: #b7c8dd; }
-    .code-output { height: 250px; overflow: auto; padding: 9px 0; background: #0a1322; }
+    .code-output { flex: 1; min-height: 0; height: 250px; overflow: auto; padding: 9px 0; background: #0a1322; }
     .instruction {
       display: grid; grid-template-columns: 102px 1fr; gap: 12px;
       padding: 3px 14px; color: #c8d6e8;
@@ -141,10 +173,13 @@
     .shortcut { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid #25334b; color: #b6c4d6; }
     kbd { border: 1px solid #44536b; border-radius: 5px; padding: 2px 7px; color: #e5eef9; background: #1b2940; font: 11px ui-monospace, monospace; }
     .modal-bottom { display: flex; justify-content: flex-end; margin-top: 14px; }
-    @media (max-width: 930px) {
+    @media (max-width: 1100px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .actions { flex-wrap: wrap; }
       .workspace { grid-template-columns: 1fr; }
+      .splitter { display: none; }
       .editor-wrap { height: 48vh; min-height: 300px; }
-      .right-column { display: grid; grid-template-columns: 1fr; }
+      .instruction-panel { min-height: 390px; }
     }
     @media (max-width: 540px) {
       .app { padding: 14px 11px 22px; }
@@ -163,9 +198,14 @@
     <header>
       <div class="brand">
         <div class="brand-icon">x86</div>
-        <div><h1>i386 Step Debugger</h1><div class="subtitle">Visual instruction-level assembly debugger</div></div>
+        <div><h1>x86 Assembly Step Debugger</h1><div class="subtitle">Visual instruction-level assembly debugger</div></div>
       </div>
       <div class="actions">
+        <label class="sr-only" for="architecture">Assembly mode</label>
+        <select id="architecture" aria-label="Assembly architecture" title="Stop or reset the current session before changing modes">
+          <option value="i386">i386 · 32-bit</option>
+          <option value="x86_64">x86-64 · 64-bit</option>
+        </select>
         <button id="helpButton" type="button" aria-haspopup="dialog">Helper / Shortcuts</button>
         <button id="resetButton" type="button" disabled>Stop / Reset</button>
         <button id="stepButton" class="step-button" type="button" disabled>Step Instruction</button>
@@ -174,26 +214,29 @@
     </header>
 
     <section class="workspace">
-      <section class="panel">
-        <div class="panel-head"><span class="panel-title">Assembly source</span><span class="panel-hint">NASM · 32-bit Intel syntax</span></div>
+      <section class="panel" id="sourcePanel">
+        <div class="panel-head"><span class="panel-title">Assembly source</span><span class="panel-hint">NASM · Intel syntax</span></div>
         <div class="editor-wrap" id="dropZone">
           <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source code"></textarea>
         </div>
         <div class="editor-footer"><span>Drop a <code>.s</code> file here to load it</span><span>Ctrl/⌘ + Enter to build</span></div>
       </section>
 
-      <div class="right-column">
-        <section class="panel">
-          <div class="panel-head"><span class="panel-title">32-bit registers</span><span class="panel-hint">Changed bytes flash amber</span></div>
-          <div class="register-grid" id="registers"></div>
-          <div class="legend"><b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. For EAX: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.</div>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><span class="panel-title">Instruction stream</span><span class="panel-hint" id="pcLabel">EIP —</span></div>
-          <div class="code-output" id="instructions"><div class="empty-state">Build a program to see its instructions.</div></div>
-          <div class="statusbar"><span><i class="status-dot" id="statusDot"></i><span id="status">Ready</span></span><span id="message"></span></div>
-        </section>
-      </div>
+      <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize assembly source and registers" aria-valuenow="35" tabindex="0" data-boundary="0"></div>
+
+      <section class="panel" id="registerPanel">
+        <div class="panel-head"><span class="panel-title" id="registerTitle">32-bit registers</span><span class="panel-hint">Changed bytes flash amber</span></div>
+        <div class="register-grid" id="registers"></div>
+        <div class="legend" id="registerLegend"><b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. EAX aliases: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.</div>
+      </section>
+
+      <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize registers and instruction stream" aria-valuenow="45" tabindex="0" data-boundary="1"></div>
+
+      <section class="panel instruction-panel" id="instructionPanel">
+        <div class="panel-head"><span class="panel-title">Instruction stream</span><span class="panel-hint" id="pcLabel">EIP —</span></div>
+        <div class="code-output" id="instructions"><div class="empty-state">Build a program to see its instructions.</div></div>
+        <div class="statusbar"><span><i class="status-dot" id="statusDot"></i><span id="status">Ready</span></span><span id="message"></span></div>
+      </section>
     </section>
   </main>
 
@@ -219,12 +262,28 @@
       const statusDot = document.getElementById("statusDot");
       const messageEl = document.getElementById("message");
       const pcLabel = document.getElementById("pcLabel");
+      const architectureSelect = document.getElementById("architecture");
+      const registerTitle = document.getElementById("registerTitle");
+      const registerLegend = document.getElementById("registerLegend");
+      const workspace = document.querySelector(".workspace");
+      const panelElements = [
+        document.getElementById("sourcePanel"),
+        document.getElementById("registerPanel"),
+        document.getElementById("instructionPanel")
+      ];
+      const splitters = [...workspace.querySelectorAll(".splitter")];
+      const widthProperties = ["--source-width", "--register-width", "--instruction-width"];
       const dropZone = document.getElementById("dropZone");
       const helpModal = document.getElementById("helpModal");
-      const registerNames = ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi", "eflags"];
+      const registerNamesByArchitecture = {
+        i386: ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi", "eflags"],
+        x86_64: ["rax", "rbx", "rcx", "rdx", "rsp", "rbp", "rsi", "rdi",
+          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "rflags"]
+      };
       let previousRegisters = null;
       let active = false;
       let busy = false;
+      let resizeDrag = null;
 
       function setStatus(text, kind = "") {
         statusEl.textContent = text;
@@ -235,6 +294,67 @@
         messageEl.textContent = text;
         messageEl.className = isError ? "error-text" : "";
       }
+
+      function currentPanelWidths() {
+        return panelElements.map(panel => panel.getBoundingClientRect().width);
+      }
+
+      function applyPanelWidths(widths) {
+        const total = widths.reduce((sum, width) => sum + width, 0);
+        widths.forEach((width, index) => {
+          workspace.style.setProperty(widthProperties[index], `${(width / total) * 100}fr`);
+        });
+        updateSplitterValues(widths, total);
+      }
+
+      function updateSplitterValues(widths = currentPanelWidths(), total = widths.reduce((sum, width) => sum + width, 0)) {
+        splitters.forEach((splitter, boundary) => {
+          splitter.setAttribute("aria-valuenow", Math.round((widths[boundary] / total) * 100));
+        });
+      }
+
+      function resizePanelPair(boundary, delta, startWidths) {
+        const minimum = 220;
+        const pairWidth = startWidths[boundary] + startWidths[boundary + 1];
+        const leftWidth = Math.max(minimum, Math.min(pairWidth - minimum, startWidths[boundary] + delta));
+        const widths = [...startWidths];
+        widths[boundary] = leftWidth;
+        widths[boundary + 1] = pairWidth - leftWidth;
+        applyPanelWidths(widths);
+      }
+
+      splitters.forEach((splitter, boundary) => {
+        splitter.addEventListener("pointerdown", event => {
+          if (event.button !== 0 || window.matchMedia("(max-width: 1100px)").matches) return;
+          event.preventDefault();
+          resizeDrag = {
+            boundary,
+            startX: event.clientX,
+            widths: currentPanelWidths()
+          };
+          workspace.classList.add("resizing");
+          workspace.setPointerCapture(event.pointerId);
+        });
+        splitter.addEventListener("keydown", event => {
+          if (!["ArrowLeft", "ArrowRight"].includes(event.key) ||
+              window.matchMedia("(max-width: 1100px)").matches) return;
+          event.preventDefault();
+          const direction = event.key === "ArrowRight" ? 1 : -1;
+          resizePanelPair(boundary, direction * 24, currentPanelWidths());
+        });
+      });
+
+      workspace.addEventListener("pointermove", event => {
+        if (!resizeDrag) return;
+        resizePanelPair(resizeDrag.boundary, event.clientX - resizeDrag.startX, resizeDrag.widths);
+      });
+      function finishResize() {
+        resizeDrag = null;
+        workspace.classList.remove("resizing");
+      }
+      workspace.addEventListener("pointerup", finishResize);
+      workspace.addEventListener("pointercancel", finishResize);
+      window.addEventListener("resize", () => updateSplitterValues());
 
       async function request(path, payload) {
         const options = { method: "POST", headers: { "Content-Type": "application/json" } };
@@ -250,34 +370,56 @@
         buildButton.disabled = value;
         stepButton.disabled = value || !active;
         resetButton.disabled = value || !active;
+        architectureSelect.disabled = value || active;
       }
 
-      function makeRegisterCards() {
+      function makeRegisterCards(architecture = architectureSelect.value) {
+        const is64Bit = architecture === "x86_64";
+        const bits = is64Bit ? 64 : 32;
+        const byteCount = bits / 8;
+        const names = registerNamesByArchitecture[architecture];
+        registerTitle.textContent = `${bits}-bit registers`;
+        registerLegend.innerHTML = is64Bit
+          ? "<b>Byte order:</b> [63:56] … [7:0]. EAX is RAX’s low 32 bits; AX is its low 16 bits, with AH/AL as bits 15:8/7:0."
+          : "<b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. EAX aliases: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.";
         registersEl.replaceChildren();
-        for (const name of registerNames) {
+        for (const name of names) {
           const card = document.createElement("div");
           card.className = "register";
           card.dataset.register = name;
-          card.innerHTML = `<div class="reg-head"><span class="reg-name">${name.toUpperCase()}</span><span class="reg-value">0x--------</span></div>
-            <div class="byte-row">${[0, 1, 2, 3].map(() => '<span class="byte">--</span>').join("")}</div>
-            <div class="sub-labels"><span>bits 31–24</span><span>bits 23–16</span><span>bits 15–8</span><span>bits 7–0</span></div>`;
+          const bytes = Array.from({ length: byteCount }, (_, index) =>
+            `<span class="byte">--</span>`).join("");
+          const labels = Array.from({ length: byteCount }, (_, index) => {
+            const high = bits - index * 8 - 1;
+            const low = high - 7;
+            return `<span>bits ${high}–${low}</span>`;
+          }).join("");
+          card.innerHTML = `<div class="reg-head"><span class="reg-name">${name.toUpperCase()}</span><span class="reg-value">0x${"-".repeat(bits / 4)}</span></div>
+            <div class="byte-row" style="grid-template-columns:repeat(${byteCount}, minmax(0, 1fr))">${bytes}</div>
+            <div class="sub-labels" style="grid-template-columns:repeat(${byteCount}, minmax(0, 1fr))">${labels}</div>`;
           registersEl.append(card);
         }
       }
 
-      function renderRegisters(values) {
+      function asBigInt(value) {
+        return BigInt(value);
+      }
+
+      function renderRegisters(values, architecture) {
         if (!values) return;
-        for (const name of registerNames) {
-          const value = Number(values[name]) >>> 0;
-          const before = previousRegisters && Number(previousRegisters[name]) >>> 0;
+        const bits = architecture === "x86_64" ? 64 : 32;
+        const byteCount = bits / 8;
+        for (const name of registerNamesByArchitecture[architecture]) {
+          const value = asBigInt(values[name]);
+          const before = previousRegisters ? asBigInt(previousRegisters[name]) : undefined;
           const card = registersEl.querySelector(`[data-register="${name}"]`);
-          card.querySelector(".reg-value").textContent = `0x${value.toString(16).padStart(8, "0")}`;
+          card.querySelector(".reg-value").textContent = `0x${value.toString(16).padStart(bits / 4, "0")}`;
           const bytes = card.querySelectorAll(".byte");
-          for (let index = 0; index < 4; index++) {
-            const shift = (3 - index) * 8;
-            const byte = (value >>> shift) & 0xff;
+          for (let index = 0; index < byteCount; index++) {
+            const shift = BigInt((byteCount - index - 1) * 8);
+            const byte = (value >> shift) & 0xffn;
             bytes[index].textContent = byte.toString(16).padStart(2, "0").toUpperCase();
-            bytes[index].classList.toggle("changed", before !== undefined && ((before >>> shift) & 0xff) !== byte);
+            bytes[index].classList.toggle("changed", before !== undefined && ((before >> shift) & 0xffn) !== byte);
           }
         }
         previousRegisters = { ...values };
@@ -294,23 +436,33 @@
         } else {
           for (const item of items) {
             const row = document.createElement("div");
-            row.className = "instruction" + (item.address === data.eip ? " current" : "");
+            const addressValue = asBigInt(item.address);
+            const pcValue = data.pc == null ? null : asBigInt(data.pc);
+            row.className = "instruction" + (addressValue === pcValue ? " current" : "");
             const address = document.createElement("span");
             address.className = "address";
-            address.textContent = `0x${Number(item.address).toString(16).padStart(8, "0")}`;
+            address.textContent = `0x${addressValue.toString(16).padStart(data.architecture === "x86_64" ? 16 : 8, "0")}`;
             const instruction = document.createElement("span");
             instruction.textContent = item.text;
             row.append(address, instruction);
             instructionsEl.append(row);
           }
         }
-        pcLabel.textContent = data.eip == null ? "EIP —" : `EIP 0x${Number(data.eip).toString(16).padStart(8, "0")}`;
+        pcLabel.textContent = data.pc == null ? `${data.pc_name || "PC"} —` :
+          `${data.pc_name.toUpperCase()} 0x${asBigInt(data.pc).toString(16).padStart(data.architecture === "x86_64" ? 16 : 8, "0")}`;
         const current = instructionsEl.querySelector(".current");
         if (current) current.scrollIntoView({ block: "nearest" });
       }
 
       function showState(data) {
-        if (data.registers && Object.keys(data.registers).length) renderRegisters(data.registers);
+        if (data.architecture && architectureSelect.value !== data.architecture) {
+          architectureSelect.value = data.architecture;
+          makeRegisterCards(data.architecture);
+          previousRegisters = null;
+        }
+        if (data.registers && Object.keys(data.registers).length) {
+          renderRegisters(data.registers, data.architecture || architectureSelect.value);
+        }
         renderInstructions(data);
         if (data.status === "exited") {
           active = false;
@@ -329,7 +481,10 @@
         setStatus("Building…");
         previousRegisters = null;
         try {
-          const data = await request("/api/build", { code: editor.value });
+          const data = await request("/api/build", {
+            code: editor.value,
+            architecture: architectureSelect.value
+          });
           showState(data);
           showMessage(data.status === "paused" ? "Ready to step" : "");
         } catch (error) {
@@ -363,7 +518,7 @@
           previousRegisters = null;
           makeRegisterCards();
           instructionsEl.innerHTML = '<div class="empty-state">Build a program to see its instructions.</div>';
-          pcLabel.textContent = "EIP —";
+          pcLabel.textContent = architectureSelect.value === "x86_64" ? "RIP —" : "EIP —";
           showMessage("");
           setStatus("Ready");
         } catch (error) {
@@ -377,6 +532,11 @@
       buildButton.addEventListener("click", build);
       stepButton.addEventListener("click", step);
       resetButton.addEventListener("click", reset);
+      architectureSelect.addEventListener("change", () => {
+        previousRegisters = null;
+        makeRegisterCards();
+        pcLabel.textContent = architectureSelect.value === "x86_64" ? "RIP —" : "EIP —";
+      });
       document.getElementById("helpButton").addEventListener("click", () => helpModal.classList.add("open"));
       document.getElementById("closeHelp").addEventListener("click", () => helpModal.classList.remove("open"));
       helpModal.addEventListener("click", event => {
@@ -394,7 +554,8 @@
           const end = editor.selectionEnd;
           editor.setRangeText("    ", start, end, "end");
         } else if ((event.code === "Space" || event.key === "ArrowRight") &&
-                   !["TEXTAREA", "INPUT"].includes(document.activeElement.tagName) &&
+                   !["TEXTAREA", "INPUT", "SELECT", "BUTTON"].includes(document.activeElement.tagName) &&
+                   !event.target.closest(".splitter") &&
                    !helpModal.classList.contains("open")) {
           event.preventDefault();
           step();
@@ -429,6 +590,7 @@
       });
 
       makeRegisterCards();
+      updateSplitterValues();
     })();
   </script>
 </body>
