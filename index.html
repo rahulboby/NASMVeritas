@@ -7,10 +7,10 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0b1020;
-      --panel: #111a2d;
-      --panel-2: #0e1728;
-      --line: #25334b;
+      --bg: #17191c;
+      --panel: #202327;
+      --panel-2: #1a1d20;
+      --line: #3a3f44;
       --text: #e6edf7;
       --muted: #91a1b8;
       --accent: #60d6c3;
@@ -22,42 +22,46 @@
     body {
       margin: 0;
       min-width: 320px;
-      min-height: 100vh;
-      background: radial-gradient(ellipse at 30% -20%, #172440, var(--bg) 60%);
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 30% -20%, #292d31, var(--bg) 62%);
       color: var(--text);
       font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
     button, textarea, select { font: inherit; }
-    .app { width: 100%; min-height: 100vh; padding: 22px 26px 30px; }
+    .app {
+      display: flex; flex-direction: column; width: 100%; height: 100%;
+      min-height: 0; padding: 22px 26px 30px;
+    }
     header {
       display: flex; align-items: center; justify-content: space-between;
-      gap: 20px; margin-bottom: 20px;
+      flex: 0 0 auto; gap: 20px; margin-bottom: 20px;
     }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-icon {
       display: grid; place-items: center; width: 40px; height: 40px;
-      border: 1px solid #2d5264; border-radius: 12px; color: var(--accent);
-      background: #102b35; font: 700 15px ui-monospace, monospace;
+      border: 1px solid #3b665f; border-radius: 12px; color: var(--accent);
+      background: #202a28; font: 700 15px ui-monospace, monospace;
     }
     h1 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
     .subtitle { color: var(--muted); font-size: 12px; }
     .actions { display: flex; align-items: center; gap: 9px; }
     button {
       border: 1px solid var(--line); border-radius: 8px; padding: 9px 13px;
-      color: var(--text); background: #17233a; cursor: pointer;
+      color: var(--text); background: #2a2e32; cursor: pointer;
       transition: background .15s, border-color .15s, transform .12s;
     }
-    button:hover:not(:disabled) { background: #21314c; border-color: #45617e; }
+    button:hover:not(:disabled) { background: #363b40; border-color: #596168; }
     button:active:not(:disabled) { transform: translateY(1px); }
     button:disabled { opacity: .46; cursor: not-allowed; }
     select {
       border: 1px solid var(--line); border-radius: 8px; padding: 9px 30px 9px 11px;
-      color: var(--text); background: #17233a; cursor: pointer;
+      color: var(--text); background: #2a2e32; cursor: pointer;
     }
     select:disabled { opacity: .55; cursor: not-allowed; }
     .primary { color: #071915; border-color: var(--accent); background: var(--accent); font-weight: 700; }
     .primary:hover:not(:disabled) { background: #7be6d4; }
-    .step-button { border-color: #386690; background: #193553; }
+    .step-button { border-color: #596168; background: #303438; }
     .workspace {
       /* Width ratios: edit the three values below for different percentages
          (e.g. 35fr, 40fr, 25fr). Defaults are 35:40:30, normalized to fit. */
@@ -65,18 +69,20 @@
       --register-width: 38fr;
       --instruction-width: 22fr;
       display: grid;
+      flex: 1 1 0; min-height: 0;
       grid-template-columns:
         minmax(0, var(--source-width)) 8px
         minmax(0, var(--register-width)) 8px
         minmax(0, var(--instruction-width));
       gap: 8px;
-      align-items: stretch;
+      align-items: stretch; grid-template-rows: minmax(0, 1fr);
     }
     .panel {
-      min-width: 0; border: 1px solid var(--line); border-radius: 13px;
-      background: linear-gradient(160deg, rgba(20,31,51,.98), rgba(13,22,38,.98));
+      min-width: 0; height: 100%; border: 1px solid var(--line); border-radius: 13px;
+      background: linear-gradient(160deg, #24282c, #1c1f22);
       box-shadow: 0 12px 35px #0003; overflow: hidden;
     }
+    #sourcePanel { display: flex; flex-direction: column; }
     .panel-head {
       height: 50px; display: flex; align-items: center; justify-content: space-between;
       padding: 0 16px; border-bottom: 1px solid var(--line);
@@ -84,10 +90,10 @@
     .panel-title { font-size: 13px; font-weight: 650; }
     .panel-hint { color: var(--muted); font-size: 11px; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    .editor-wrap { height: min(68vh, 690px); min-height: 390px; position: relative; }
+    .editor-wrap { flex: 1 1 auto; min-height: 0; position: relative; }
     #editor {
-      width: 100%; height: 100%; resize: vertical; display: block; padding: 18px 20px;
-      border: 0; outline: 0; background: #0b1424; color: #d7e5f7;
+      width: 100%; height: 100%; resize: none; display: block; padding: 18px 20px;
+      border: 0; outline: 0; background: #171a1d; color: #d7e5f7;
       font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       tab-size: 4; white-space: pre; overflow: auto;
     }
@@ -95,7 +101,7 @@
     .editor-wrap.dragging::after {
       content: "Drop .s assembly file"; position: absolute; inset: 12px;
       display: grid; place-items: center; border: 2px dashed var(--accent);
-      border-radius: 10px; background: #0d1d2be8; color: var(--accent);
+      border-radius: 10px; background: #202426ed; color: var(--accent);
       font-size: 17px; font-weight: 700; pointer-events: none;
     }
     .editor-footer {
@@ -108,25 +114,26 @@
     }
     .splitter::after {
       content: ""; position: absolute; top: 8px; bottom: 8px; left: 3px; width: 2px;
-      border-radius: 2px; background: #30425d; transition: background .15s, width .15s, left .15s;
+      border-radius: 2px; background: #50565b; transition: background .15s, width .15s, left .15s;
     }
     .splitter:hover::after, .splitter:focus-visible::after, .workspace.resizing .splitter::after {
       left: 2px; width: 4px; background: var(--accent);
     }
     .workspace.resizing { cursor: col-resize; user-select: none; }
     .workspace.resizing textarea { pointer-events: none; }
-    .instruction-panel { display: flex; flex-direction: column; min-height: 390px; }
+    #registerPanel { overflow-y: auto; }
+    .instruction-panel { display: flex; flex-direction: column; min-height: 0; }
     .register-grid {
       display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 9px; padding: 13px;
     }
     .register {
-      min-width: 0; padding: 10px; border: 1px solid #263750;
-      border-radius: 9px; background: #0c1627;
+      min-width: 0; padding: 10px; border: 1px solid #3c4248;
+      border-radius: 9px; background: #191c1f;
     }
     .flags-panel {
-      margin: 0 13px 10px; padding: 12px; border: 1px solid #293b55;
-      border-radius: 10px; background: linear-gradient(145deg, #101c30, #0c1627);
+      margin: 0 13px 10px; padding: 12px; border: 1px solid #41474c;
+      border-radius: 10px; background: linear-gradient(145deg, #24282c, #1a1d20);
     }
     .flags-head {
       display: flex; justify-content: space-between; align-items: baseline;
@@ -136,14 +143,19 @@
     .flags-note { color: var(--muted); font-size: 10px; }
     .flags-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 6px; }
     .flag-item {
-      min-width: 0; padding: 6px 5px; border: 1px solid #263750;
-      border-radius: 6px; background: #0a1424; text-align: center;
+      min-width: 0; padding: 6px 5px; border: 1px solid #3b4146;
+      border-radius: 6px; background: #181b1e; text-align: center;
+    }
+    .flag-item.changed {
+      border-color: var(--changed); background: #58421c;
+      animation: flash .8s ease-out;
     }
     .flag-name { display: block; color: #91a6c1; font: 10px ui-monospace, monospace; }
     .flag-value { display: block; margin-top: 2px; color: var(--accent); font: 700 14px ui-monospace, monospace; }
+    .flag-item.changed .flag-value { color: #ffe2a1; }
     .translator {
-      margin: 0 13px 13px; padding: 14px; border: 1px solid #293b55;
-      border-radius: 10px; background: linear-gradient(145deg, #101c30, #0c1627);
+      margin: 0 13px 13px; padding: 14px; border: 1px solid #41474c;
+      border-radius: 10px; background: linear-gradient(145deg, #24282c, #1a1d20);
     }
     .translator-head {
       display: flex; justify-content: space-between; align-items: baseline;
@@ -159,8 +171,8 @@
     }
     .translator-inputs { display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 7px; }
     .translator input, .translator select {
-      width: 100%; min-width: 0; height: 36px; border: 1px solid #2d405b;
-      border-radius: 7px; padding: 7px 9px; color: var(--text); background: #0a1424;
+      width: 100%; min-width: 0; height: 36px; border: 1px solid #41474c;
+      border-radius: 7px; padding: 7px 9px; color: var(--text); background: #181b1e;
       font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
     .translator input:focus, .translator select:focus { outline: 2px solid #60d6c366; border-color: var(--accent); }
@@ -168,8 +180,8 @@
     .conversion-list { display: grid; gap: 6px; }
     .conversion-row {
       display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: start;
-      gap: 7px; padding: 7px 8px; border: 1px solid #25364e;
-      border-radius: 6px; background: #0a1424;
+      gap: 7px; padding: 7px 8px; border: 1px solid #3b4146;
+      border-radius: 6px; background: #181b1e;
     }
     .conversion-name { padding-top: 1px; color: #8fa4bf; font-size: 10px; }
     .conversion-value {
@@ -183,8 +195,8 @@
     .byte-row { display: grid; grid-template-columns: repeat(4, minmax(2.4ch, 1fr)); gap: 4px; }
     .byte {
       min-width: 2.4ch; padding: 5px 0 4px; text-align: center; white-space: nowrap;
-      border: 1px solid #26364f;
-      border-radius: 5px; background: #121f33; color: #dce8f8;
+      border: 1px solid #3b4146;
+      border-radius: 5px; background: #25292d; color: #dce8f8;
       font: 11px ui-monospace, monospace; transition: background .2s, border-color .2s, color .2s;
     }
     .byte.changed { border-color: var(--changed); background: #58421c; color: #ffe2a1; animation: flash .8s ease-out; }
@@ -193,7 +205,7 @@
     .sub-labels span { color: #71839d; text-align: center; font-size: 8px; line-height: 1.25; white-space: nowrap; }
     .legend { padding: 0 14px 12px; color: var(--muted); font-size: 10px; }
     .legend b { color: #b7c8dd; }
-    .code-output { flex: 1; min-height: 0; height: 250px; overflow: auto; padding: 9px 0; background: #0a1322; }
+    .code-output { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 9px 0; background: #171a1d; }
     .instruction {
       display: grid; grid-template-columns: max-content max-content; gap: 12px;
       width: max-content; min-width: 100%;
@@ -202,7 +214,7 @@
       white-space: pre; overflow-wrap: normal;
     }
     .instruction .address { color: #7187a6; }
-    .instruction.current { background: #153446; box-shadow: inset 3px 0 var(--accent); color: #bff9ed; }
+    .instruction.current { background: #303638; box-shadow: inset 3px 0 var(--accent); color: #bff9ed; }
     .instruction.current .address { color: var(--accent); }
     .empty-state { padding: 25px 18px; color: #788aa3; text-align: center; font-size: 12px; }
     .statusbar {
@@ -217,24 +229,56 @@
     .error-text { color: var(--danger); }
     .modal-backdrop {
       position: fixed; inset: 0; z-index: 4; display: none; place-items: center;
-      padding: 18px; background: #050912c9;
+      padding: 18px; background: #080909c9;
     }
     .modal-backdrop.open { display: grid; }
     .modal {
       width: min(400px, 100%); padding: 20px; border: 1px solid #31435d;
-      border-radius: 12px; background: #111b2d; box-shadow: 0 20px 70px #0009;
+      border-radius: 12px; background: #24282c; box-shadow: 0 20px 70px #0009;
     }
+    .modal.manual-modal {
+      width: min(1000px, 100%); max-height: min(88vh, 900px);
+      display: flex; flex-direction: column; padding: 0;
+    }
+    .manual-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 20px; padding: 20px 24px; border-bottom: 1px solid var(--line);
+    }
+    .manual-head h2 { margin: 0 0 4px; font-size: 19px; }
+    .manual-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .manual-content { overflow: auto; padding: 20px 24px; }
+    .manual-content h3 { margin: 0 0 10px; font-size: 14px; }
+    .manual-content section + section { margin-top: 24px; }
+    .manual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .manual-table-wrap { overflow-x: auto; border: 1px solid #41474c; border-radius: 8px; }
+    .manual-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .manual-table th, .manual-table td { padding: 9px 11px; border-bottom: 1px solid #3a3f44; vertical-align: top; }
+    .manual-table th { color: #aebed2; background: #2a2e32; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .manual-table td { color: #d3d9df; font-size: 12px; }
+    .manual-table tr:last-child td { border-bottom: 0; }
+    .manual-table td:first-child { color: var(--blue); font: 700 12px ui-monospace, monospace; white-space: nowrap; }
+    .manual-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+    .manual-foot { display: flex; justify-content: flex-end; padding: 12px 24px; border-top: 1px solid var(--line); }
     .modal h2 { margin: 0 0 13px; font-size: 16px; }
-    .shortcut { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid #25334b; color: #b6c4d6; }
-    kbd { border: 1px solid #44536b; border-radius: 5px; padding: 2px 7px; color: #e5eef9; background: #1b2940; font: 11px ui-monospace, monospace; }
+    .shortcut { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid #3a3f44; color: #b6c4d6; }
+    kbd { border: 1px solid #555c62; border-radius: 5px; padding: 2px 7px; color: #e5eef9; background: #303438; font: 11px ui-monospace, monospace; }
     .modal-bottom { display: flex; justify-content: flex-end; margin-top: 14px; }
     @media (max-width: 1100px) {
+      body { height: auto; min-height: 100vh; overflow: auto; }
+      .app { display: block; height: auto; min-height: 100vh; }
       header { align-items: flex-start; flex-direction: column; }
       .actions { flex-wrap: wrap; }
-      .workspace { grid-template-columns: 1fr; }
+      .workspace {
+        display: grid; flex: none; min-height: 0;
+        grid-template-columns: 1fr; grid-template-rows: auto;
+      }
       .splitter { display: none; }
+      .panel { height: auto; }
+      #sourcePanel { display: block; }
       .editor-wrap { height: 48vh; min-height: 300px; }
+      #registerPanel { overflow: visible; }
       .instruction-panel { min-height: 390px; }
+      .code-output { height: 250px; flex: 1 1 auto; }
     }
     @media (max-width: 540px) {
       .app { padding: 14px 11px 22px; }
@@ -246,6 +290,9 @@
       .register { padding: 8px; }
       .translator { margin: 0 9px 9px; padding: 10px; }
       .translator-columns { grid-template-columns: 1fr; gap: 10px; }
+      .manual-head, .manual-content { padding: 16px; }
+      .manual-grid { grid-template-columns: 1fr; }
+      .manual-table th, .manual-table td { padding: 8px; }
       .instruction { gap: 8px; }
     }
   </style>
@@ -263,6 +310,7 @@
           <option value="i386">i386 · 32-bit</option>
           <option value="x86_64">x86-64 · 64-bit</option>
         </select>
+        <button id="manualButton" type="button" aria-haspopup="dialog">Manual</button>
         <button id="helpButton" type="button" aria-haspopup="dialog">Helper / Shortcuts</button>
         <button id="resetButton" type="button" disabled>Stop / Reset</button>
         <button id="stepButton" class="step-button" type="button" disabled>Step Instruction</button>
@@ -303,9 +351,9 @@
               <div class="translator-inputs">
                 <input id="translatorValue" type="text" inputmode="text" autocomplete="off" spellcheck="false" aria-describedby="translatorError" placeholder="Enter a value">
                 <select id="translatorBase" aria-label="Input number base">
-                  <option value="decimal">Decimal</option>
-                  <option value="hex">Hex</option>
+                  <option value="hex" selected>Hex</option>
                   <option value="binary">Binary</option>
+                  <option value="decimal">Decimal</option>
                 </select>
               </div>
               <label class="translator-label" for="translatorBits" style="margin-top: 10px">Bit width</label>
@@ -349,6 +397,85 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+    <div class="modal manual-modal">
+      <div class="manual-head">
+        <div>
+          <h2 id="manualTitle">x86 register &amp; flags manual</h2>
+          <p>Register names, conventional roles, and the meaning of each displayed flag.</p>
+        </div>
+          <button id="closeManualTop" type="button" aria-label="Close manual">Close</button>
+      </div>
+      <div class="manual-content">
+        <section>
+          <h3>General-purpose registers</h3>
+          <div class="manual-grid">
+            <div class="manual-table-wrap">
+              <table class="manual-table">
+                <thead><tr><th>i386</th><th>Full name / conventional role</th></tr></thead>
+                <tbody>
+                  <tr><td>EAX</td><td>Accumulator — arithmetic results, function return values, and legacy syscall numbers.</td></tr>
+                  <tr><td>EBX</td><td>Base register — general-purpose; historically used as a base pointer and for syscall arguments.</td></tr>
+                  <tr><td>ECX</td><td>Count register — loop counts and shift counts; also a general-purpose register.</td></tr>
+                  <tr><td>EDX</td><td>Data register — paired arithmetic data and I/O; also a general-purpose register.</td></tr>
+                  <tr><td>ESI</td><td>Source index — source pointer for string operations; also general-purpose.</td></tr>
+                  <tr><td>EDI</td><td>Destination index — destination pointer for string operations; also general-purpose.</td></tr>
+                  <tr><td>EBP</td><td>Base/frame pointer — often anchors a stack frame; also general-purpose.</td></tr>
+                  <tr><td>ESP</td><td>Stack pointer — points to the current top of the stack.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="manual-table-wrap">
+              <table class="manual-table">
+                <thead><tr><th>x86-64</th><th>Full name / conventional role</th></tr></thead>
+                <tbody>
+                  <tr><td>RAX</td><td>64-bit accumulator; low portions are EAX, AX, AH, and AL.</td></tr>
+                  <tr><td>RBX</td><td>64-bit base register; general-purpose in x86-64.</td></tr>
+                  <tr><td>RCX</td><td>64-bit count register; used by some instructions and calling conventions.</td></tr>
+                  <tr><td>RDX</td><td>64-bit data register; used by some instructions and calling conventions.</td></tr>
+                  <tr><td>RSI / RDI</td><td>Source / destination index registers; also used for argument passing on common 64-bit ABIs.</td></tr>
+                  <tr><td>RBP / RSP</td><td>Frame/base pointer / stack pointer. RSP tracks the current stack top.</td></tr>
+                  <tr><td>R8–R15</td><td>Additional 64-bit general-purpose registers. Their low 32-, 16-, and 8-bit names end in <code>d</code>, <code>w</code>, and <code>b</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="manual-note">Legacy role names describe common uses, not restrictions: most of these registers can be used as general-purpose registers. The byte and word aliases are the low-order portions of their parent register.</p>
+        </section>
+
+        <section>
+          <h3>EFLAGS / RFLAGS flags</h3>
+          <div class="manual-table-wrap">
+            <table class="manual-table">
+              <thead><tr><th>Flag</th><th>Bit(s)</th><th>Full name</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td>CF</td><td>0</td><td>Carry Flag</td><td>Carry or borrow from an unsigned arithmetic operation.</td></tr>
+                <tr><td>PF</td><td>2</td><td>Parity Flag</td><td>Set when the low byte of a result has even parity.</td></tr>
+                <tr><td>AF</td><td>4</td><td>Auxiliary Carry Flag</td><td>Carry between bit 3 and bit 4; used by some BCD operations.</td></tr>
+                <tr><td>ZF</td><td>6</td><td>Zero Flag</td><td>Set when an operation's result is zero.</td></tr>
+                <tr><td>SF</td><td>7</td><td>Sign Flag</td><td>Copies the most-significant result bit; indicates a negative signed result.</td></tr>
+                <tr><td>TF</td><td>8</td><td>Trap Flag</td><td>Enables single-step trap behavior when set.</td></tr>
+                <tr><td>IF</td><td>9</td><td>Interrupt Enable Flag</td><td>Controls recognition of maskable interrupts when permitted.</td></tr>
+                <tr><td>DF</td><td>10</td><td>Direction Flag</td><td>Controls the direction used by string instructions.</td></tr>
+                <tr><td>OF</td><td>11</td><td>Overflow Flag</td><td>Indicates signed arithmetic overflow.</td></tr>
+                <tr><td>IOPL</td><td>13:12</td><td>I/O Privilege Level</td><td>Two-bit privilege level controlling certain I/O operations.</td></tr>
+                <tr><td>NT</td><td>14</td><td>Nested Task Flag</td><td>Controls nested task handling in legacy task switching.</td></tr>
+                <tr><td>RF</td><td>16</td><td>Resume Flag</td><td>Controls debug exception behavior for the following instruction.</td></tr>
+                <tr><td>VM</td><td>17</td><td>Virtual-8086 Mode Flag</td><td>Indicates virtual-8086 mode when supported and active.</td></tr>
+                <tr><td>AC</td><td>18</td><td>Alignment Check Flag</td><td>Enables alignment checking in applicable privilege modes.</td></tr>
+                <tr><td>VIF</td><td>19</td><td>Virtual Interrupt Flag</td><td>Virtualized interrupt-enable state.</td></tr>
+                <tr><td>VIP</td><td>20</td><td>Virtual Interrupt Pending Flag</td><td>Indicates a pending virtual interrupt.</td></tr>
+                <tr><td>ID</td><td>21</td><td>ID Flag</td><td>Can indicate whether the CPUID instruction is supported.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="manual-note">Flag values are shown in binary; for IOPL, the display is the two-bit value. In x86-64 mode the panel uses the EFLAGS layout for the low 32 bits of RFLAGS and does not display upper bits 32–63.</p>
+        </section>
+      </div>
+      <div class="manual-foot"><button id="closeManual" type="button">Close manual</button></div>
+    </div>
+  </div>
+
   <script>
     (() => {
       const editor = document.getElementById("editor");
@@ -384,6 +511,7 @@
       const widthProperties = ["--source-width", "--register-width", "--instruction-width"];
       const dropZone = document.getElementById("dropZone");
       const helpModal = document.getElementById("helpModal");
+      const manualModal = document.getElementById("manualModal");
       const registerNamesByArchitecture = {
         i386: ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi"],
         x86_64: ["rax", "rbx", "rcx", "rdx", "rsp", "rbp", "rsi", "rdi",
@@ -409,6 +537,7 @@
         { name: "ID", bit: 21, title: "CPUID flag" }
       ];
       let previousRegisters = null;
+      let previousFlags = null;
       let active = false;
       let hasSession = false;
       let busy = false;
@@ -612,13 +741,15 @@
         const flagRegister = architecture === "x86_64" ? values.rflags : values.eflags;
         if (flagRegister == null) return;
         const flags = BigInt(flagRegister) & 0xffffffffn;
+        const before = previousFlags;
         flagsDisplay.replaceChildren();
         for (const flag of flagDefinitions) {
           const width = flag.width || 1;
           const mask = (1n << BigInt(width)) - 1n;
           const value = (flags >> BigInt(flag.bit)) & mask;
+          const changed = before !== null && ((before >> BigInt(flag.bit)) & mask) !== value;
           const item = document.createElement("div");
-          item.className = "flag-item";
+          item.className = `flag-item${changed ? " changed" : ""}`;
           item.title = `${flag.title} (bit${width > 1 ? `s ${flag.bit + width - 1}:${flag.bit}` : ` ${flag.bit}`})`;
           const name = document.createElement("span");
           name.className = "flag-name";
@@ -629,6 +760,7 @@
           item.append(name, binary);
           flagsDisplay.append(item);
         }
+        previousFlags = flags;
       }
 
       function renderInstructions(data) {
@@ -668,6 +800,7 @@
           architectureSelect.value = data.architecture;
           makeRegisterCards(data.architecture);
           previousRegisters = null;
+          previousFlags = null;
         }
         if (data.registers && Object.keys(data.registers).length) {
           renderRegisters(data.registers, data.architecture || architectureSelect.value);
@@ -698,6 +831,7 @@
         showMessage("");
         setStatus("Building…");
         previousRegisters = null;
+        previousFlags = null;
         try {
           const data = await request("/api/build", {
             code: editor.value,
@@ -736,6 +870,7 @@
           active = false;
           hasSession = false;
           previousRegisters = null;
+          previousFlags = null;
           makeRegisterCards();
           instructionsEl.innerHTML = '<div class="empty-state">Build a program to see its instructions.</div>';
           pcLabel.textContent = architectureSelect.value === "x86_64" ? "RIP —" : "EIP —";
@@ -757,6 +892,7 @@
       translatorBits.addEventListener("change", translateNumber);
       architectureSelect.addEventListener("change", () => {
         previousRegisters = null;
+        previousFlags = null;
         makeRegisterCards();
         pcLabel.textContent = architectureSelect.value === "x86_64" ? "RIP —" : "EIP —";
       });
@@ -765,9 +901,19 @@
       helpModal.addEventListener("click", event => {
         if (event.target === helpModal) helpModal.classList.remove("open");
       });
+      document.getElementById("manualButton").addEventListener("click", () => manualModal.classList.add("open"));
+      for (const id of ["closeManual", "closeManualTop"]) {
+        document.getElementById(id).addEventListener("click", () => manualModal.classList.remove("open"));
+      }
+      manualModal.addEventListener("click", event => {
+        if (event.target === manualModal) manualModal.classList.remove("open");
+      });
 
       document.addEventListener("keydown", event => {
-        if (event.key === "Escape") helpModal.classList.remove("open");
+        if (event.key === "Escape") {
+          helpModal.classList.remove("open");
+          manualModal.classList.remove("open");
+        }
         if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
           event.preventDefault();
           build();
@@ -779,7 +925,8 @@
         } else if ((event.code === "Space" || event.key === "ArrowRight") &&
                    !["TEXTAREA", "INPUT", "SELECT", "BUTTON"].includes(document.activeElement.tagName) &&
                    !event.target.closest(".splitter") &&
-                   !helpModal.classList.contains("open")) {
+                   !helpModal.classList.contains("open") &&
+                   !manualModal.classList.contains("open")) {
           event.preventDefault();
           step();
         }

@@ -22,6 +22,7 @@ packages, build step, or external assets.
 - Highlight only the bytes that changed after a step.
 - Convert unsigned decimal, hexadecimal, and binary values at 8-, 16-, 32-,
   or 64-bit widths.
+- Open the in-app manual for register roles, flag names, and keyboard shortcuts.
 - View the source, registers, and instruction stream side by side; drag the
   dividers (or focus one and use the arrow keys) to resize the panels.
 - Edit source in the browser or drag and drop a `.s` file into the editor.
@@ -57,7 +58,10 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Select
 
 On wide screens, the editor, register view, and instruction stream appear in
 that order from left to right. Drag either divider to resize neighboring
-panels. At narrower viewport sizes the panels stack vertically.
+panels. The three panels share the available viewport height and scroll
+independently, so scrolling their contents does not move the whole desktop
+page. At narrower viewport sizes the panels stack vertically and the page
+scrolls normally.
 The initial width weights are 35:40:30; they are normalized to fit because
 the ratios add up to more than 100%.
 
