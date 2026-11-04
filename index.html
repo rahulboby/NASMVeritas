@@ -62,7 +62,7 @@
       /* Width ratios: edit the three values below for different percentages
          (e.g. 35fr, 40fr, 25fr). Defaults are 35:40:30, normalized to fit. */
       --source-width: 35fr;
-      --register-width: 40fr;
+      --register-width: 35fr;
       --instruction-width: 30fr;
       display: grid;
       grid-template-columns:
@@ -117,34 +117,72 @@
     .workspace.resizing textarea { pointer-events: none; }
     .instruction-panel { display: flex; flex-direction: column; min-height: 390px; }
     .register-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 9px; padding: 13px;
     }
     .register {
       min-width: 0; padding: 10px; border: 1px solid #263750;
       border-radius: 9px; background: #0c1627;
     }
+    .translator {
+      margin: 0 13px 13px; padding: 14px; border: 1px solid #293b55;
+      border-radius: 10px; background: linear-gradient(145deg, #101c30, #0c1627);
+    }
+    .translator-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 10px; margin-bottom: 12px;
+    }
+    .translator-title { color: var(--text); font-size: 13px; font-weight: 650; }
+    .translator-hint { color: var(--muted); font-size: 10px; }
+    .translator-columns { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 12px; }
+    .translator-column { min-width: 0; }
+    .translator-label {
+      display: block; margin: 0 0 6px; color: #aebed2;
+      font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    }
+    .translator-inputs { display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 7px; }
+    .translator input, .translator select {
+      width: 100%; min-width: 0; height: 36px; border: 1px solid #2d405b;
+      border-radius: 7px; padding: 7px 9px; color: var(--text); background: #0a1424;
+      font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .translator input:focus, .translator select:focus { outline: 2px solid #60d6c366; border-color: var(--accent); }
+    .translator select { margin-top: 7px; font-family: inherit; }
+    .conversion-list { display: grid; gap: 6px; }
+    .conversion-row {
+      display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: start;
+      gap: 7px; padding: 7px 8px; border: 1px solid #25364e;
+      border-radius: 6px; background: #0a1424;
+    }
+    .conversion-name { padding-top: 1px; color: #8fa4bf; font-size: 10px; }
+    .conversion-value {
+      min-width: 0; color: #d7e5f7; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere; word-break: break-all;
+    }
+    .translator-error { min-height: 15px; margin-top: 8px; color: var(--danger); font-size: 10px; }
     .reg-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
     .reg-name { color: var(--blue); font: 700 12px ui-monospace, monospace; letter-spacing: .04em; }
     .reg-value { color: #cad7e8; font: 11px ui-monospace, monospace; }
-    .byte-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+    .byte-row { display: grid; grid-template-columns: repeat(4, minmax(2.4ch, 1fr)); gap: 4px; }
     .byte {
-      padding: 5px 2px 4px; text-align: center; border: 1px solid #26364f;
+      min-width: 2.4ch; padding: 5px 0 4px; text-align: center; white-space: nowrap;
+      border: 1px solid #26364f;
       border-radius: 5px; background: #121f33; color: #dce8f8;
-      font: 12px ui-monospace, monospace; transition: background .2s, border-color .2s, color .2s;
+      font: 11px ui-monospace, monospace; transition: background .2s, border-color .2s, color .2s;
     }
     .byte.changed { border-color: var(--changed); background: #58421c; color: #ffe2a1; animation: flash .8s ease-out; }
     @keyframes flash { from { box-shadow: 0 0 14px #f7bd4a99; } to { box-shadow: 0 0 0 transparent; } }
     .sub-labels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
-    .sub-labels span { color: #71839d; text-align: center; font-size: 9px; line-height: 1.25; }
+    .sub-labels span { color: #71839d; text-align: center; font-size: 8px; line-height: 1.25; white-space: nowrap; }
     .legend { padding: 0 14px 12px; color: var(--muted); font-size: 10px; }
     .legend b { color: #b7c8dd; }
     .code-output { flex: 1; min-height: 0; height: 250px; overflow: auto; padding: 9px 0; background: #0a1322; }
     .instruction {
-      display: grid; grid-template-columns: 102px 1fr; gap: 12px;
+      display: grid; grid-template-columns: max-content max-content; gap: 12px;
+      width: max-content; min-width: 100%;
       padding: 3px 14px; color: #c8d6e8;
       font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      white-space: pre-wrap; overflow-wrap: anywhere;
+      white-space: pre; overflow-wrap: normal;
     }
     .instruction .address { color: #7187a6; }
     .instruction.current { background: #153446; box-shadow: inset 3px 0 var(--accent); color: #bff9ed; }
@@ -189,7 +227,9 @@
       .workspace { gap: 11px; }
       .register-grid { gap: 7px; padding: 9px; }
       .register { padding: 8px; }
-      .instruction { grid-template-columns: 84px 1fr; gap: 8px; }
+      .translator { margin: 0 9px 9px; padding: 10px; }
+      .translator-columns { grid-template-columns: 1fr; gap: 10px; }
+      .instruction { gap: 8px; }
     }
   </style>
 </head>
@@ -228,6 +268,41 @@
         <div class="panel-head"><span class="panel-title" id="registerTitle">32-bit registers</span><span class="panel-hint">Changed bytes flash amber</span></div>
         <div class="register-grid" id="registers"></div>
         <div class="legend" id="registerLegend"><b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. EAX aliases: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.</div>
+        <section class="translator" aria-labelledby="translatorTitle">
+          <div class="translator-head">
+            <span class="translator-title" id="translatorTitle">Number translator</span>
+            <span class="translator-hint">Unsigned · fixed width</span>
+          </div>
+          <div class="translator-columns">
+            <div class="translator-column">
+              <label class="translator-label" for="translatorValue">Input value</label>
+              <div class="translator-inputs">
+                <input id="translatorValue" type="text" inputmode="text" autocomplete="off" spellcheck="false" aria-describedby="translatorError" placeholder="Enter a value">
+                <select id="translatorBase" aria-label="Input number base">
+                  <option value="decimal">Decimal</option>
+                  <option value="hex">Hex</option>
+                  <option value="binary">Binary</option>
+                </select>
+              </div>
+              <label class="translator-label" for="translatorBits" style="margin-top: 10px">Bit width</label>
+              <select id="translatorBits" aria-label="Translator bit width">
+                <option value="8">8 bits</option>
+                <option value="16">16 bits</option>
+                <option value="32" selected>32 bits</option>
+                <option value="64">64 bits</option>
+              </select>
+            </div>
+            <div class="translator-column">
+              <span class="translator-label">Equivalent values</span>
+              <div class="conversion-list" aria-live="polite">
+                <div class="conversion-row"><span class="conversion-name">Decimal</span><output id="translatedDecimal" class="conversion-value">—</output></div>
+                <div class="conversion-row"><span class="conversion-name">Hex</span><output id="translatedHex" class="conversion-value">—</output></div>
+                <div class="conversion-row"><span class="conversion-name">Binary</span><output id="translatedBinary" class="conversion-value">—</output></div>
+              </div>
+            </div>
+          </div>
+          <div class="translator-error" id="translatorError" role="status"></div>
+        </section>
       </section>
 
       <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize registers and instruction stream" aria-valuenow="45" tabindex="0" data-boundary="1"></div>
@@ -265,6 +340,13 @@
       const architectureSelect = document.getElementById("architecture");
       const registerTitle = document.getElementById("registerTitle");
       const registerLegend = document.getElementById("registerLegend");
+      const translatorValue = document.getElementById("translatorValue");
+      const translatorBase = document.getElementById("translatorBase");
+      const translatorBits = document.getElementById("translatorBits");
+      const translatorError = document.getElementById("translatorError");
+      const translatedDecimal = document.getElementById("translatedDecimal");
+      const translatedHex = document.getElementById("translatedHex");
+      const translatedBinary = document.getElementById("translatedBinary");
       const workspace = document.querySelector(".workspace");
       const panelElements = [
         document.getElementById("sourcePanel"),
@@ -393,10 +475,10 @@
           const labels = Array.from({ length: byteCount }, (_, index) => {
             const high = bits - index * 8 - 1;
             const low = high - 7;
-            return `<span>bits ${high}–${low}</span>`;
+            return `<span>${high}–${low}</span>`;
           }).join("");
           card.innerHTML = `<div class="reg-head"><span class="reg-name">${name.toUpperCase()}</span><span class="reg-value">0x${"-".repeat(bits / 4)}</span></div>
-            <div class="byte-row" style="grid-template-columns:repeat(${byteCount}, minmax(0, 1fr))">${bytes}</div>
+            <div class="byte-row" style="grid-template-columns:repeat(${byteCount}, minmax(2.4ch, 1fr))">${bytes}</div>
             <div class="sub-labels" style="grid-template-columns:repeat(${byteCount}, minmax(0, 1fr))">${labels}</div>`;
           registersEl.append(card);
         }
@@ -404,6 +486,55 @@
 
       function asBigInt(value) {
         return BigInt(value);
+      }
+
+      function convertNumber(rawValue, base, bits) {
+        const source = rawValue.trim().replaceAll("_", "");
+        if (!source) return null;
+
+        const prefix = base === "hex" ? /^0x/i : base === "binary" ? /^0b/i : null;
+        const digits = prefix ? source.replace(prefix, "") : source;
+        const pattern = base === "decimal" ? /^[0-9]+$/ :
+          base === "hex" ? /^[0-9a-f]+$/i : /^[01]+$/;
+        if (!pattern.test(digits)) {
+          throw new Error(`Enter a valid ${base} value${base === "hex" ? " (0x prefix optional)" : base === "binary" ? " (0b prefix optional)" : ""}.`);
+        }
+
+        const number = BigInt(`${base === "decimal" ? "" : base === "hex" ? "0x" : "0b"}${digits}`);
+        const maximum = (1n << BigInt(bits)) - 1n;
+        if (number > maximum) {
+          throw new Error(`Value is too large for ${bits} bits (maximum ${maximum.toString()}).`);
+        }
+        const binary = number.toString(2).padStart(bits, "0");
+        return {
+          decimal: number.toString(10),
+          hex: `0x${number.toString(16).padStart(Math.ceil(bits / 4), "0")}`,
+          binary: `0b${binary.match(/.{1,4}/g).join(" ")}`
+        };
+      }
+
+      function clearTranslation(error = "") {
+        translatedDecimal.textContent = "—";
+        translatedHex.textContent = "—";
+        translatedBinary.textContent = "—";
+        translatorError.textContent = error;
+      }
+
+      function translateNumber() {
+        const bits = Number(translatorBits.value);
+        try {
+          const conversion = convertNumber(translatorValue.value, translatorBase.value, bits);
+          if (!conversion) {
+            clearTranslation();
+            return;
+          }
+          translatedDecimal.textContent = conversion.decimal;
+          translatedHex.textContent = conversion.hex;
+          translatedBinary.textContent = conversion.binary;
+          translatorError.textContent = "";
+        } catch (error) {
+          clearTranslation(error.message);
+        }
       }
 
       function renderRegisters(values, architecture) {
@@ -546,6 +677,9 @@
       buildButton.addEventListener("click", build);
       stepButton.addEventListener("click", step);
       resetButton.addEventListener("click", reset);
+      translatorValue.addEventListener("input", translateNumber);
+      translatorBase.addEventListener("change", translateNumber);
+      translatorBits.addEventListener("change", translateNumber);
       architectureSelect.addEventListener("change", () => {
         previousRegisters = null;
         makeRegisterCards();
@@ -604,6 +738,7 @@
       });
 
       makeRegisterCards();
+      translateNumber();
       updateSplitterValues();
     })();
   </script>

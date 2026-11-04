@@ -18,6 +18,8 @@ packages, build step, or external assets.
 - View disassembly around the current instruction and highlight the PC.
 - Inspect general-purpose registers and EFLAGS/RFLAGS as byte-level values.
 - Highlight only the bytes that changed after a step.
+- Convert unsigned decimal, hexadecimal, and binary values at 8-, 16-, 32-,
+  or 64-bit widths.
 - View the source, registers, and instruction stream side by side; drag the
   dividers (or focus one and use the arrow keys) to resize the panels.
 - Edit source in the browser or drag and drop a `.s` file into the editor.
