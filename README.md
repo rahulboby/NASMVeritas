@@ -1,5 +1,7 @@
 # x86 Assembly Step Debugger
 
+![alt text](images/screenshot.png)
+
 A lightweight, browser-based instruction debugger for **32-bit i386** and
 **64-bit x86-64** Linux assembly. Write or drop in NASM source, build it with
 NASM and GNU `ld`, then step through machine instructions while watching the
@@ -102,6 +104,10 @@ The x86-64 view includes RAX–RDI, R8–R15, and RFLAGS. Each register is split
 into 8-bit hex blocks in most-significant-to-least-significant order. For
 example, the low 32 bits of RAX are EAX, its low 16 bits are AX, and its low
 two bytes can be addressed as AH and AL.
+
+The condition and control flags are displayed separately as individual binary
+bits below the general-purpose registers. The x86-64 view uses the same
+EFLAGS bit layout for RFLAGS and notes that its upper 32 bits are not used.
 
 Signed results are shown as their fixed-width hexadecimal register values
 (for example, `-2` in EAX appears as `0xfffffffe`). If an instruction stops

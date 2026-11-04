@@ -62,8 +62,8 @@
       /* Width ratios: edit the three values below for different percentages
          (e.g. 35fr, 40fr, 25fr). Defaults are 35:40:30, normalized to fit. */
       --source-width: 35fr;
-      --register-width: 35fr;
-      --instruction-width: 30fr;
+      --register-width: 38fr;
+      --instruction-width: 22fr;
       display: grid;
       grid-template-columns:
         minmax(0, var(--source-width)) 8px
@@ -124,6 +124,23 @@
       min-width: 0; padding: 10px; border: 1px solid #263750;
       border-radius: 9px; background: #0c1627;
     }
+    .flags-panel {
+      margin: 0 13px 10px; padding: 12px; border: 1px solid #293b55;
+      border-radius: 10px; background: linear-gradient(145deg, #101c30, #0c1627);
+    }
+    .flags-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 10px; margin-bottom: 10px;
+    }
+    .flags-title { color: var(--text); font-size: 12px; font-weight: 650; }
+    .flags-note { color: var(--muted); font-size: 10px; }
+    .flags-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 6px; }
+    .flag-item {
+      min-width: 0; padding: 6px 5px; border: 1px solid #263750;
+      border-radius: 6px; background: #0a1424; text-align: center;
+    }
+    .flag-name { display: block; color: #91a6c1; font: 10px ui-monospace, monospace; }
+    .flag-value { display: block; margin-top: 2px; color: var(--accent); font: 700 14px ui-monospace, monospace; }
     .translator {
       margin: 0 13px 13px; padding: 14px; border: 1px solid #293b55;
       border-radius: 10px; background: linear-gradient(145deg, #101c30, #0c1627);
@@ -267,6 +284,13 @@
       <section class="panel" id="registerPanel">
         <div class="panel-head"><span class="panel-title" id="registerTitle">32-bit registers</span><span class="panel-hint">Changed bytes flash amber</span></div>
         <div class="register-grid" id="registers"></div>
+        <section class="flags-panel" aria-labelledby="flagsTitle">
+          <div class="flags-head">
+            <span class="flags-title" id="flagsTitle">EFLAGS</span>
+            <span class="flags-note" id="flagsNote">Flag bits · binary</span>
+          </div>
+          <div class="flags-grid" id="flagsDisplay" aria-live="polite"></div>
+        </section>
         <div class="legend" id="registerLegend"><b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. EAX aliases: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.</div>
         <section class="translator" aria-labelledby="translatorTitle">
           <div class="translator-head">
@@ -340,6 +364,9 @@
       const architectureSelect = document.getElementById("architecture");
       const registerTitle = document.getElementById("registerTitle");
       const registerLegend = document.getElementById("registerLegend");
+      const flagsTitle = document.getElementById("flagsTitle");
+      const flagsNote = document.getElementById("flagsNote");
+      const flagsDisplay = document.getElementById("flagsDisplay");
       const translatorValue = document.getElementById("translatorValue");
       const translatorBase = document.getElementById("translatorBase");
       const translatorBits = document.getElementById("translatorBits");
@@ -358,10 +385,29 @@
       const dropZone = document.getElementById("dropZone");
       const helpModal = document.getElementById("helpModal");
       const registerNamesByArchitecture = {
-        i386: ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi", "eflags"],
+        i386: ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi"],
         x86_64: ["rax", "rbx", "rcx", "rdx", "rsp", "rbp", "rsi", "rdi",
-          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "rflags"]
+          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
       };
+      const flagDefinitions = [
+        { name: "CF", bit: 0, title: "Carry flag" },
+        { name: "PF", bit: 2, title: "Parity flag" },
+        { name: "AF", bit: 4, title: "Auxiliary carry flag" },
+        { name: "ZF", bit: 6, title: "Zero flag" },
+        { name: "SF", bit: 7, title: "Sign flag" },
+        { name: "TF", bit: 8, title: "Trap flag" },
+        { name: "IF", bit: 9, title: "Interrupt enable flag" },
+        { name: "DF", bit: 10, title: "Direction flag" },
+        { name: "OF", bit: 11, title: "Overflow flag" },
+        { name: "IOPL", bit: 12, width: 2, title: "I/O privilege level" },
+        { name: "NT", bit: 14, title: "Nested task flag" },
+        { name: "RF", bit: 16, title: "Resume flag" },
+        { name: "VM", bit: 17, title: "Virtual 8086 mode" },
+        { name: "AC", bit: 18, title: "Alignment check" },
+        { name: "VIF", bit: 19, title: "Virtual interrupt flag" },
+        { name: "VIP", bit: 20, title: "Virtual interrupt pending" },
+        { name: "ID", bit: 21, title: "CPUID flag" }
+      ];
       let previousRegisters = null;
       let active = false;
       let hasSession = false;
@@ -462,10 +508,15 @@
         const byteCount = bits / 8;
         const names = registerNamesByArchitecture[architecture];
         registerTitle.textContent = `${bits}-bit registers`;
+        flagsTitle.textContent = architecture === "x86_64" ? "RFLAGS · EFLAGS layout" : "EFLAGS";
+        flagsNote.textContent = architecture === "x86_64"
+          ? "Bits 32–63 are not used · values shown in binary"
+          : "Flag bits · binary";
         registerLegend.innerHTML = is64Bit
           ? "<b>Byte order:</b> [63:56] … [7:0]. EAX is RAX’s low 32 bits; AX is its low 16 bits, with AH/AL as bits 15:8/7:0."
           : "<b>Byte order:</b> [31:24] [23:16] [15:8] [7:0]. EAX aliases: AX = low 16 bits, AH = bits 15:8, AL = bits 7:0.";
         registersEl.replaceChildren();
+        flagsDisplay.textContent = "Build a program to inspect its flags.";
         for (const name of names) {
           const card = document.createElement("div");
           card.className = "register";
@@ -557,6 +608,29 @@
         previousRegisters = { ...values };
       }
 
+      function renderFlags(values, architecture) {
+        const flagRegister = architecture === "x86_64" ? values.rflags : values.eflags;
+        if (flagRegister == null) return;
+        const flags = BigInt(flagRegister) & 0xffffffffn;
+        flagsDisplay.replaceChildren();
+        for (const flag of flagDefinitions) {
+          const width = flag.width || 1;
+          const mask = (1n << BigInt(width)) - 1n;
+          const value = (flags >> BigInt(flag.bit)) & mask;
+          const item = document.createElement("div");
+          item.className = "flag-item";
+          item.title = `${flag.title} (bit${width > 1 ? `s ${flag.bit + width - 1}:${flag.bit}` : ` ${flag.bit}`})`;
+          const name = document.createElement("span");
+          name.className = "flag-name";
+          name.textContent = flag.name;
+          const binary = document.createElement("output");
+          binary.className = "flag-value";
+          binary.textContent = value.toString(2).padStart(width, "0");
+          item.append(name, binary);
+          flagsDisplay.append(item);
+        }
+      }
+
       function renderInstructions(data) {
         const items = data.instructions || [];
         instructionsEl.replaceChildren();
@@ -597,6 +671,7 @@
         }
         if (data.registers && Object.keys(data.registers).length) {
           renderRegisters(data.registers, data.architecture || architectureSelect.value);
+          renderFlags(data.registers, data.architecture || architectureSelect.value);
         }
         renderInstructions(data);
         if (data.status === "signal_exit") {
