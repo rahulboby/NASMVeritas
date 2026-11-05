@@ -392,6 +392,7 @@
       <h2 id="modalTitle">Keyboard shortcuts</h2>
       <div class="shortcut"><span>Step one instruction</span><span><kbd>Space</kbd> or <kbd>→</kbd></span></div>
       <div class="shortcut"><span>Build &amp; debug source</span><span><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd></span></div>
+      <div class="shortcut"><span>Return to editor and restore caret</span><span><kbd>Ctrl</kbd> + <kbd>Backspace</kbd></span></div>
       <div class="shortcut"><span>Close this dialog</span><span><kbd>Esc</kbd></span></div>
       <div class="modal-bottom"><button id="closeHelp" type="button">Close</button></div>
     </div>
@@ -542,6 +543,21 @@
       let hasSession = false;
       let busy = false;
       let resizeDrag = null;
+      let editorSelection = { start: 0, end: 0, direction: "none" };
+
+      function rememberEditorSelection() {
+        editorSelection = {
+          start: editor.selectionStart,
+          end: editor.selectionEnd,
+          direction: editor.selectionDirection || "none"
+        };
+      }
+
+      function restoreEditorSelection() {
+        const start = Math.min(editorSelection.start, editor.value.length);
+        const end = Math.min(editorSelection.end, editor.value.length);
+        editor.setSelectionRange(start, end, editorSelection.direction);
+      }
 
       function setStatus(text, kind = "") {
         statusEl.textContent = text;
@@ -887,6 +903,10 @@
       buildButton.addEventListener("click", build);
       stepButton.addEventListener("click", step);
       resetButton.addEventListener("click", reset);
+      for (const eventName of ["click", "keyup", "select", "input", "focusout"]) {
+        editor.addEventListener(eventName, rememberEditorSelection);
+      }
+      editor.addEventListener("focus", restoreEditorSelection);
       translatorValue.addEventListener("input", translateNumber);
       translatorBase.addEventListener("change", translateNumber);
       translatorBits.addEventListener("change", translateNumber);
@@ -914,8 +934,16 @@
           helpModal.classList.remove("open");
           manualModal.classList.remove("open");
         }
-        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        const typingTarget = event.target instanceof Element &&
+          (event.target.closest("input, textarea, select, [contenteditable='true']") !== null);
+        if (event.ctrlKey && !event.altKey && !event.metaKey && event.key === "Backspace" &&
+            event.target !== editor && !typingTarget &&
+            !helpModal.classList.contains("open") && !manualModal.classList.contains("open")) {
           event.preventDefault();
+          editor.focus();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault();
+          if (event.target === editor) editor.blur();
           build();
         } else if (event.key === "Tab" && event.target === editor) {
           event.preventDefault();
@@ -953,6 +981,8 @@
         }
         try {
           editor.value = await file.text();
+          editor.setSelectionRange(editor.value.length, editor.value.length);
+          rememberEditorSelection();
           showMessage(`Loaded ${file.name}`);
         } catch (error) {
           showMessage(`Could not read file: ${error.message}`, true);
