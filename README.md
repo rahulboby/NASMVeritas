@@ -27,8 +27,9 @@ packages, build step, or external assets.
   dividers (or focus one and use the arrow keys) to resize the panels.
 - Edit source in the browser or drag and drop a `.s` file into the editor.
 - Use keyboard shortcuts: **Space** or **Right Arrow** to step; **Ctrl/⌘ +
-  Enter** to build; **Ctrl + Backspace** to return to the editor and restore
-  its previous caret or selection.
+  Enter** to build; **Tab** and **Shift + Tab** to indent and outdent lines;
+  **Ctrl/⌘ + Z** to undo editor changes; **Ctrl + Backspace** to return to the
+  editor and restore its previous caret or selection.
 
 ## Requirements
 

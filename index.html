@@ -324,7 +324,7 @@
         <div class="editor-wrap" id="dropZone">
           <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source code"></textarea>
         </div>
-        <div class="editor-footer"><span>Drop a <code>.s</code> file here to load it</span><span>Ctrl/⌘ + Enter to build</span></div>
+        <div class="editor-footer"><span>Drop a <code>.s</code> file here to load it</span><span>Tab / Shift+Tab to indent · Ctrl/⌘ + Z to undo</span></div>
       </section>
 
       <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize assembly source and registers" aria-valuenow="35" tabindex="0" data-boundary="0"></div>
@@ -392,6 +392,8 @@
       <h2 id="modalTitle">Keyboard shortcuts</h2>
       <div class="shortcut"><span>Step one instruction</span><span><kbd>Space</kbd> or <kbd>→</kbd></span></div>
       <div class="shortcut"><span>Build &amp; debug source</span><span><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd></span></div>
+      <div class="shortcut"><span>Indent / outdent selected lines</span><span><kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd></span></div>
+      <div class="shortcut"><span>Undo editor changes</span><span><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Z</kbd></span></div>
       <div class="shortcut"><span>Return to editor and restore caret</span><span><kbd>Ctrl</kbd> + <kbd>Backspace</kbd></span></div>
       <div class="shortcut"><span>Close this dialog</span><span><kbd>Esc</kbd></span></div>
       <div class="modal-bottom"><button id="closeHelp" type="button">Close</button></div>
@@ -557,6 +559,74 @@
         const start = Math.min(editorSelection.start, editor.value.length);
         const end = Math.min(editorSelection.end, editor.value.length);
         editor.setSelectionRange(start, end, editorSelection.direction);
+      }
+
+      function replaceEditorText(text, start, end) {
+        editor.setSelectionRange(start, end);
+        // Keep scripted edits in the browser's native undo history.
+        if (!document.execCommand("insertText", false, text)) {
+          editor.setRangeText(text, start, end, "preserve");
+        }
+      }
+
+      function indentEditorSelection(outdent) {
+        const value = editor.value;
+        const selectionStart = editor.selectionStart;
+        const selectionEnd = editor.selectionEnd;
+        const selectionDirection = editor.selectionDirection || "none";
+        if (!outdent && selectionStart === selectionEnd) {
+          replaceEditorText("\t", selectionStart, selectionEnd);
+          editor.setSelectionRange(selectionStart + 1, selectionStart + 1);
+          rememberEditorSelection();
+          return;
+        }
+        const firstLineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
+        const endLineStart = value.lastIndexOf("\n", selectionEnd - 1) + 1;
+        const excludeEndLine = selectionEnd > selectionStart &&
+          endLineStart > firstLineStart && selectionEnd === endLineStart;
+        const lastLineStart = excludeEndLine
+          ? value.lastIndexOf("\n", endLineStart - 2) + 1
+          : endLineStart;
+        const blockEnd = value.indexOf("\n", lastLineStart);
+        const actualBlockEnd = blockEnd === -1 ? value.length : blockEnd;
+        const block = value.slice(firstLineStart, actualBlockEnd);
+        const lines = block.split("\n");
+        const edits = [];
+        let lineStart = 0;
+        const updatedBlock = lines.map(line => {
+          if (!outdent) {
+            edits.push({ lineStart, removed: 0, inserted: 1 });
+            lineStart += line.length + 1;
+            return `\t${line}`;
+          }
+          const indentation = line.match(/^(?:\t| {1,4})/);
+          const removed = indentation ? indentation[0].length : 0;
+          if (removed) edits.push({ lineStart, removed, inserted: 0 });
+          lineStart += line.length + 1;
+          return line.slice(removed);
+        }).join("\n");
+        if (outdent && edits.length === 0) return;
+
+        function adjustOffset(offset) {
+          const localOffset = offset - firstLineStart;
+          let delta = 0;
+          for (const edit of edits) {
+            if (localOffset < edit.lineStart) break;
+            if (edit.removed && localOffset < edit.lineStart + edit.removed) {
+              return firstLineStart + edit.lineStart + delta;
+            }
+            delta += edit.inserted - edit.removed;
+          }
+          return offset + delta;
+        }
+
+        replaceEditorText(updatedBlock, firstLineStart, actualBlockEnd);
+        editor.setSelectionRange(
+          adjustOffset(selectionStart),
+          adjustOffset(selectionEnd),
+          selectionDirection
+        );
+        rememberEditorSelection();
       }
 
       function setStatus(text, kind = "") {
@@ -947,9 +1017,7 @@
           build();
         } else if (event.key === "Tab" && event.target === editor) {
           event.preventDefault();
-          const start = editor.selectionStart;
-          const end = editor.selectionEnd;
-          editor.setRangeText("    ", start, end, "end");
+          indentEditorSelection(event.shiftKey);
         } else if ((event.code === "Space" || event.key === "ArrowRight") &&
                    !["TEXTAREA", "INPUT", "SELECT", "BUTTON"].includes(document.activeElement.tagName) &&
                    !event.target.closest(".splitter") &&
