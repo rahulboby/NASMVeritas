@@ -572,8 +572,8 @@
             <table class="manual-table">
               <thead><tr><th>Control</th><th>What it does</th></tr></thead>
               <tbody>
-                <tr><td>Step Instruction</td><td>Executes exactly one machine instruction, then pauses and refreshes the register and instruction views. The Right Arrow key does the same thing. A call instruction enters the called function and steps into it.</td></tr>
-                <tr><td>Step Over Call</td><td>Enabled only when the current instruction is a call. Runs the called function and pauses at the instruction after the call returns. Output produced by the call appears in the program output console. It is intentionally unavailable for other instructions.</td></tr>
+                <tr><td>Step Instruction</td><td>Executes exactly one machine instruction, then pauses and refreshes the register and instruction views. The Right Arrow key does the same thing. At a <code>call</code>, it steps into the callee. For an external C function, the next instruction may be a PLT <code>jmp</code> trampoline; keep stepping to follow it into the dynamic linker and library.</td></tr>
+                <tr><td>Step Over Call</td><td>Enabled only when the current instruction is a call. Runs the called function and pauses at the instruction after the call returns, skipping the callee and any PLT/dynamic-linker instructions. Output produced by the call appears in the program output console. It is intentionally unavailable for other instructions.</td></tr>
                 <tr><td>Run to Exit</td><td>Continues execution without stopping at each instruction. Pauses if the program hits a debugger stop or signal; otherwise shows its final state and captured output when it exits. A program that does not stop within 120 seconds is stopped and the debugger session is reset.</td></tr>
               </tbody>
             </table>
@@ -1207,7 +1207,7 @@
       }
 
       buildButton.addEventListener("click", build);
-      stepButton.addEventListener("click", step);
+      stepButton.addEventListener("click", () => step());
       stepOverButton.addEventListener("click", () => step(true));
       runButton.addEventListener("click", runToExit);
       resetButton.addEventListener("click", reset);
