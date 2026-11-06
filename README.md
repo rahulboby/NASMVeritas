@@ -15,7 +15,14 @@ packages, build step, or external assets.
 ## Features
 
 - Switch between i386 and x86-64 assembly modes in the application.
-- Assemble NASM ELF objects and link standalone Linux executables.
+- Assemble NASM ELF objects and link standalone Linux executables with GNU
+  `ld`, or use GCC to link against the C runtime and libc.
+- View the program's stdout and stderr in the instruction panel while stepping.
+- Step over calls such as `printf` without tracing every instruction inside libc.
+- Run a program to completion with **Run to Exit** instead of stepping.
+- Choose **Step Instruction** to execute one machine instruction; calls are stepped into.
+- Choose **Step Over Call** to execute a call and pause after it returns.
+- Choose **Run to Exit** to continue until the program exits or stops; runs are limited to 120 seconds.
 - Step one instruction at a time through GDB's Machine Interface.
 - View disassembly around the current instruction and highlight the PC.
 - Inspect general-purpose registers and EFLAGS/RFLAGS as byte-level values.
@@ -23,6 +30,8 @@ packages, build step, or external assets.
 - Convert unsigned decimal, hexadecimal, and binary values at 8-, 16-, 32-,
   or 64-bit widths.
 - Open the in-app manual for register roles, flag names, and keyboard shortcuts.
+- Browse the topic-based manual for i386 and x86-64 Linux syscall and C
+  calling-convention tables.
 - View the source, registers, and instruction stream side by side; drag the
   dividers (or focus one and use the arrow keys) to resize the panels.
 - Edit source in the browser or drag and drop a `.s` file into the editor.
@@ -37,12 +46,14 @@ On Ubuntu, install Python 3 and the native tools:
 
 ```bash
 sudo apt update
-sudo apt install python3 nasm binutils gdb
+sudo apt install python3 nasm binutils gdb gcc
 ```
 
 The 64-bit mode requires an x86-64 Ubuntu host and an `ld` that supports the
 `elf_x86_64` emulation. The 32-bit mode emits a standalone i386 ELF executable;
 it does not require 32-bit C libraries.
+Selecting GCC requires GCC and its development runtime. For 32-bit GCC builds
+on a 64-bit Ubuntu system, install `gcc-multilib` and `libc6-dev-i386`.
 
 ## Run
 
@@ -56,7 +67,13 @@ python3 server.py
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Select
 **i386 · 32-bit** or **x86-64 · 64-bit**, enter assembly, and click
 **Build & Debug**. While a session is active, use **Step Instruction** or
-**Stop / Reset**. Reset the current session before changing architecture.
+**Stop / Reset**. Reset the current session before changing architecture or
+linker.
+
+Choose **GCC · main + libc** for source that calls C library functions such as
+`printf` or `exit`; **GNU ld · _start, no libc** is only for standalone programs
+that provide their own `_start` entry point and system calls. Use NASM's `db`
+directive for string data, for example `msg: db "Hello", 0`.
 
 On wide screens, the editor, register view, and instruction stream appear in
 that order from left to right. Drag either divider to resize neighboring
@@ -69,9 +86,11 @@ the ratios add up to more than 100%.
 
 ## Example programs
 
-Each mode expects NASM Intel syntax and a global `_start` entry point. The
-examples below exit cleanly using the Linux system-call ABI for their
-architecture.
+Select **GNU ld** for a standalone Linux system-call program with a global
+`_start` entry point, or **GCC** for a program using the C runtime and a global
+`main` entry point. The debugger starts at the selected entry point. NASM
+assembly and linker commands are printed in the server terminal and shown in
+the in-app manual.
 
 ### i386
 
@@ -85,8 +104,10 @@ _start:
     int 0x80
 ```
 
-The server assembles this mode with `nasm -f elf` and links it with
-`ld -m elf_i386`.
+For **GNU ld**, the server runs `nasm -f elf program.s -o program.o` followed
+by `ld -m elf_i386 program.o -o program`. For **GCC**, it runs the same NASM
+command followed by `gcc -m32 -no-pie program.o -o program`; GCC links the C
+runtime and libc, and the source must define `main`.
 
 ### x86-64
 
@@ -100,8 +121,12 @@ _start:
     syscall
 ```
 
-The server assembles this mode with `nasm -f elf64` and links it with
-`ld -m elf_x86_64`.
+For **GNU ld**, the server runs `nasm -f elf64 program.s -o program.o` followed
+by `ld -m elf_x86_64 program.o -o program`. For **GCC**, it runs the same NASM
+command followed by `gcc -m64 -no-pie program.o -o program`; GCC links the C
+runtime and libc, and the source must define `main`. The x86-64 System V ABI
+passes function arguments in registers; it does not use the 32-bit cdecl
+stack-argument convention.
 
 ## Register display
 

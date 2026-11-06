@@ -206,6 +206,13 @@
     .legend { padding: 0 14px 12px; color: var(--muted); font-size: 10px; }
     .legend b { color: #b7c8dd; }
     .code-output { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 9px 0; background: #171a1d; }
+    .program-output { display: flex; flex: 0 0 25%; flex-direction: column; min-height: 120px; border-top: 1px solid var(--line); }
+    .program-output-head { padding: 8px 13px 5px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    #programOutput {
+      flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: 8px 13px;
+      background: #171a1d; color: #d7e5f7; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
     .instruction {
       display: grid; grid-template-columns: max-content max-content; gap: 12px;
       width: max-content; min-width: 100%;
@@ -248,8 +255,15 @@
     .manual-head p { margin: 0; color: var(--muted); font-size: 12px; }
     .manual-content { overflow: auto; padding: 20px 24px; }
     .manual-content h3 { margin: 0 0 10px; font-size: 14px; }
+    .manual-content h4 { margin: 12px 0 6px; font-size: 12px; }
+    .manual-content p { color: #b6c4d6; font-size: 12px; }
     .manual-content section + section { margin-top: 24px; }
+    .manual-topics { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
+    .manual-topics button { padding: 7px 10px; font-size: 11px; }
+    .manual-topics button[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: #273432; }
+    .manual-content section[hidden] { display: none; }
     .manual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .build-command { overflow-x: auto; margin: 6px 0 10px; padding: 10px; border: 1px solid #41474c; border-radius: 6px; background: #171a1d; color: #d7e5f7; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .manual-table-wrap { overflow-x: auto; border: 1px solid #41474c; border-radius: 8px; }
     .manual-table { width: 100%; border-collapse: collapse; text-align: left; }
     .manual-table th, .manual-table td { padding: 9px 11px; border-bottom: 1px solid #3a3f44; vertical-align: top; }
@@ -279,6 +293,7 @@
       #registerPanel { overflow: visible; }
       .instruction-panel { min-height: 390px; }
       .code-output { height: 250px; flex: 1 1 auto; }
+      .program-output { flex: 0 0 145px; }
     }
     @media (max-width: 540px) {
       .app { padding: 14px 11px 22px; }
@@ -310,10 +325,17 @@
           <option value="i386">i386 · 32-bit</option>
           <option value="x86_64">x86-64 · 64-bit</option>
         </select>
+        <label class="sr-only" for="linker">Linker</label>
+        <select id="linker" aria-label="Linker" title="Choose GNU ld or the GCC linker driver">
+          <option value="ld">GNU ld · _start, no libc</option>
+          <option value="gcc">GCC · main + libc</option>
+        </select>
         <button id="manualButton" type="button" aria-haspopup="dialog">Manual</button>
         <button id="helpButton" type="button" aria-haspopup="dialog">Helper / Shortcuts</button>
         <button id="resetButton" type="button" disabled>Stop / Reset</button>
         <button id="stepButton" class="step-button" type="button" disabled>Step Instruction</button>
+        <button id="stepOverButton" type="button" title="Available when the current instruction is a call" disabled>Step Over Call</button>
+        <button id="runButton" type="button" title="Continue execution until the program exits or stops" disabled>Run to Exit</button>
         <button id="buildButton" class="primary" type="button">Build &amp; Debug</button>
       </div>
     </header>
@@ -382,6 +404,10 @@
       <section class="panel instruction-panel" id="instructionPanel">
         <div class="panel-head"><span class="panel-title">Instruction stream</span><span class="panel-hint" id="pcLabel">EIP —</span></div>
         <div class="code-output" id="instructions"><div class="empty-state">Build a program to see its instructions.</div></div>
+        <section class="program-output" aria-labelledby="programOutputTitle">
+          <div class="program-output-head" id="programOutputTitle">Program output (stdout / stderr)</div>
+          <pre id="programOutput" aria-live="polite">Program output will appear here as it runs.</pre>
+        </section>
         <div class="statusbar"><span><i class="status-dot" id="statusDot"></i><span id="status">Ready</span></span><span id="message"></span></div>
       </section>
     </section>
@@ -404,12 +430,13 @@
     <div class="modal manual-modal">
       <div class="manual-head">
         <div>
-          <h2 id="manualTitle">x86 register &amp; flags manual</h2>
-          <p>Register names, conventional roles, and the meaning of each displayed flag.</p>
+          <h2 id="manualTitle">x86 assembly reference</h2>
+          <p>Registers, Linux syscall conventions, C function arguments, build commands, and flags for i386 and x86-64.</p>
         </div>
           <button id="closeManualTop" type="button" aria-label="Close manual">Close</button>
       </div>
       <div class="manual-content">
+        <nav class="manual-topics" id="manualTopics" aria-label="Manual topics"></nav>
         <section>
           <h3>General-purpose registers</h3>
           <div class="manual-grid">
@@ -444,6 +471,139 @@
             </div>
           </div>
           <p class="manual-note">Legacy role names describe common uses, not restrictions: most of these registers can be used as general-purpose registers. The byte and word aliases are the low-order portions of their parent register.</p>
+        </section>
+
+        <section>
+          <h3>Linux i386 system calls</h3>
+          <p>For 32-bit Linux using <code>int 0x80</code>, put the syscall number in <code>EAX</code> and arguments in registers. This table lists common calls; syscall numbers and interfaces are architecture-specific.</p>
+          <div class="manual-table-wrap">
+            <table class="manual-table">
+              <thead><tr><th>EAX</th><th>Call</th><th>EBX · arg1</th><th>ECX · arg2</th><th>EDX · arg3</th><th>ESI · arg4</th><th>EDI · arg5</th><th>EBP · arg6</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>exit</td><td>status</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>3</td><td>read</td><td>fd</td><td>buffer</td><td>count</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>4</td><td>write</td><td>fd</td><td>buffer</td><td>count</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>5</td><td>open</td><td>pathname</td><td>flags</td><td>mode</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>6</td><td>close</td><td>fd</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>11</td><td>execve</td><td>pathname</td><td>argv</td><td>envp</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>19</td><td>lseek</td><td>fd</td><td>offset</td><td>whence</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>45</td><td>brk</td><td>address</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>91</td><td>munmap</td><td>address</td><td>length</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>125</td><td>mprotect</td><td>address</td><td>length</td><td>protection</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>192</td><td>mmap2</td><td>address</td><td>length</td><td>protection</td><td>flags</td><td>fd</td><td>page offset</td></tr>
+                <tr><td>252</td><td>exit_group</td><td>status</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>295</td><td>openat</td><td>dirfd</td><td>pathname</td><td>flags</td><td>mode</td><td>—</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="manual-note">Return value is in <code>EAX</code>. Linux reports syscall errors as negative error numbers in the range <code>-1</code> to <code>-4095</code>. File descriptors 0, 1, and 2 conventionally mean standard input, standard output, and standard error. See <a href="https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls/" target="_blank" rel="noopener noreferrer">the syscall reference</a> for a fuller, versioned list.</p>
+        </section>
+
+        <section>
+          <h3>Linux x86-64 system calls</h3>
+          <p>In 64-bit Linux, put the syscall number in <code>RAX</code>, arguments in the listed registers, then execute <code>syscall</code>. The kernel syscall convention uses <code>R10</code> for argument 4 (not <code>RCX</code>).</p>
+          <div class="manual-table-wrap">
+            <table class="manual-table">
+              <thead><tr><th>RAX</th><th>Call</th><th>RDI · arg1</th><th>RSI · arg2</th><th>RDX · arg3</th><th>R10 · arg4</th><th>R8 · arg5</th><th>R9 · arg6</th></tr></thead>
+              <tbody>
+                <tr><td>0</td><td>read</td><td>fd</td><td>buffer</td><td>count</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>1</td><td>write</td><td>fd</td><td>buffer</td><td>count</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>2</td><td>open</td><td>pathname</td><td>flags</td><td>mode</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>3</td><td>close</td><td>fd</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>9</td><td>mmap</td><td>address</td><td>length</td><td>protection</td><td>flags</td><td>fd</td><td>offset</td></tr>
+                <tr><td>10</td><td>mprotect</td><td>address</td><td>length</td><td>protection</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>11</td><td>munmap</td><td>address</td><td>length</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>16</td><td>ioctl</td><td>fd</td><td>request</td><td>argument</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>39</td><td>getpid</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>57</td><td>fork</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>59</td><td>execve</td><td>pathname</td><td>argv</td><td>envp</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>60</td><td>exit</td><td>status</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>61</td><td>wait4</td><td>pid</td><td>status</td><td>options</td><td>rusage</td><td>—</td><td>—</td></tr>
+                <tr><td>62</td><td>kill</td><td>pid</td><td>signal</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>231</td><td>exit_group</td><td>status</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr><td>257</td><td>openat</td><td>dirfd</td><td>pathname</td><td>flags</td><td>mode</td><td>—</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="manual-note">Return value is in <code>RAX</code>; errors are negative error numbers. The <code>syscall</code> instruction clobbers <code>RCX</code> and <code>R11</code>. This table lists common calls, not every syscall; see <a href="https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls/" target="_blank" rel="noopener noreferrer">the syscall reference</a> for a fuller, versioned list.</p>
+        </section>
+
+        <section>
+          <h3>32-bit C function arguments (cdecl)</h3>
+          <p>For the usual 32-bit Linux C ABI, push arguments right-to-left before <code>call</code>. At function entry, the CPU has pushed the return address, so the first argument is at <code>[ESP+4]</code>.</p>
+          <div class="manual-table-wrap">
+            <table class="manual-table">
+              <thead><tr><th>Order</th><th>Caller action</th><th>At callee entry</th><th>Example for <code>printf(fmt, msg)</code></th></tr></thead>
+              <tbody>
+                <tr><td>Last argument</td><td><code>push argN</code></td><td><code>[ESP+4*N]</code></td><td><code>push msg</code> (arg2)</td></tr>
+                <tr><td>First argument</td><td><code>push arg1</code></td><td><code>[ESP+4]</code></td><td><code>push fmt</code> (arg1)</td></tr>
+                <tr><td>Call</td><td><code>call function</code></td><td><code>[ESP]</code> is return address</td><td><code>call printf</code></td></tr>
+                <tr><td>After return</td><td><code>add esp, 4*N</code></td><td>Caller removes arguments (cdecl)</td><td><code>add esp, 8</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="manual-note">Example sequence: <code>push msg</code>, <code>push fmt</code>, <code>call printf</code>, <code>add esp, 8</code>. Some compiler conventions use callee cleanup; ordinary Linux i386 C uses cdecl. Use <code>db "text", 0</code> for a C string.</p>
+        </section>
+
+        <section>
+          <h3>x86-64 C function arguments (System V AMD64)</h3>
+          <p>Integer and pointer arguments are passed in registers first. This is the C function ABI, not the Linux syscall ABI.</p>
+          <div class="manual-table-wrap">
+            <table class="manual-table">
+              <thead><tr><th>Argument</th><th>Register</th><th>Example: <code>printf(fmt, msg)</code></th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>RDI</td><td>format string</td></tr>
+                <tr><td>2</td><td>RSI</td><td>string pointer</td></tr>
+                <tr><td>3</td><td>RDX</td><td>third integer/pointer argument</td></tr>
+                <tr><td>4</td><td>RCX</td><td>fourth integer/pointer argument</td></tr>
+                <tr><td>5</td><td>R8</td><td>fifth integer/pointer argument</td></tr>
+                <tr><td>6</td><td>R9</td><td>sixth integer/pointer argument</td></tr>
+                <tr><td>7 onward</td><td>Stack</td><td>Additional arguments are passed on the stack</td></tr>
+                <tr><td>Return value</td><td>RAX</td><td>Integer/pointer result</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="manual-note">Before a normal call, align <code>RSP</code> to 16 bytes; at function entry, the pushed return address means <code>RSP % 16 == 8</code>. For variadic calls such as <code>printf</code>, set <code>AL</code> to the number of vector registers used for floating-point arguments (usually zero if none). Example: <code>lea rdi, [rel fmt]</code>, <code>lea rsi, [rel msg]</code>, <code>xor eax, eax</code>, <code>call printf</code>.</p>
+        </section>
+
+        <section>
+          <h3>Execution controls</h3>
+          <div class="manual-table-wrap">
+            <table class="manual-table">
+              <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td>Step Instruction</td><td>Executes exactly one machine instruction, then pauses and refreshes the register and instruction views. The Right Arrow key does the same thing. A call instruction enters the called function and steps into it.</td></tr>
+                <tr><td>Step Over Call</td><td>Enabled only when the current instruction is a call. Runs the called function and pauses at the instruction after the call returns. Output produced by the call appears in the program output console. It is intentionally unavailable for other instructions.</td></tr>
+                <tr><td>Run to Exit</td><td>Continues execution without stopping at each instruction. Pauses if the program hits a debugger stop or signal; otherwise shows its final state and captured output when it exits. A program that does not stop within 120 seconds is stopped and the debugger session is reset.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section>
+          <h3>Build and link commands</h3>
+          <p>Clicking <strong>Build &amp; Debug</strong> writes your source as <code>program.s</code> in a temporary directory, runs NASM to create <code>program.o</code>, then runs the selected linker to create <code>program</code>. The same commands are printed in the server terminal. The running program's stdout and stderr appear in the output console below the instruction stream. Use <strong>Step Over Call</strong> to execute a call such as <code>printf</code> without tracing every instruction inside libc, or <strong>Run to Exit</strong> to continue the program without stepping.</p>
+          <div class="manual-grid">
+            <div>
+              <h4>i386 · 32-bit</h4>
+              <p>NASM assembly (both linker choices):</p>
+              <pre class="build-command"><code>nasm -f elf program.s -o program.o</code></pre>
+              <p>GNU ld (standalone Linux system-call program with a global <code>_start</code>):</p>
+              <pre class="build-command"><code>ld -m elf_i386 program.o -o program</code></pre>
+              <p>GCC (C runtime and libc; source must define a global <code>main</code>):</p>
+              <pre class="build-command"><code>gcc -m32 -no-pie program.o -o program</code></pre>
+            </div>
+            <div>
+              <h4>x86-64 · 64-bit</h4>
+              <p>NASM assembly (both linker choices):</p>
+              <pre class="build-command"><code>nasm -f elf64 program.s -o program.o</code></pre>
+              <p>GNU ld (standalone Linux system-call program with a global <code>_start</code>):</p>
+              <pre class="build-command"><code>ld -m elf_x86_64 program.o -o program</code></pre>
+              <p>GCC (C runtime and libc; source must define a global <code>main</code>):</p>
+              <pre class="build-command"><code>gcc -m64 -no-pie program.o -o program</code></pre>
+            </div>
+          </div>
+          <p class="manual-note">With <code>ld</code>, the debugger starts at <code>_start</code>; with GCC, it starts at <code>main</code>. GCC links the C runtime and libc automatically; for 32-bit GCC on a 64-bit Ubuntu system, install <code>gcc-multilib</code> and <code>libc6-dev-i386</code>. The 64-bit C calling convention passes arguments in registers; 32-bit cdecl passes arguments on the stack. Use NASM's <code>db</code> directive for null-terminated string data (for example, <code>msg: db "Hello", 0</code>), not <code>dd</code>. Direct <code>ld</code> does not automatically link libc.</p>
         </section>
 
         <section>
@@ -485,6 +645,8 @@
       const registersEl = document.getElementById("registers");
       const instructionsEl = document.getElementById("instructions");
       const stepButton = document.getElementById("stepButton");
+      const stepOverButton = document.getElementById("stepOverButton");
+      const runButton = document.getElementById("runButton");
       const resetButton = document.getElementById("resetButton");
       const buildButton = document.getElementById("buildButton");
       const statusEl = document.getElementById("status");
@@ -492,6 +654,8 @@
       const messageEl = document.getElementById("message");
       const pcLabel = document.getElementById("pcLabel");
       const architectureSelect = document.getElementById("architecture");
+      const linkerSelect = document.getElementById("linker");
+      const programOutput = document.getElementById("programOutput");
       const registerTitle = document.getElementById("registerTitle");
       const registerLegend = document.getElementById("registerLegend");
       const flagsTitle = document.getElementById("flagsTitle");
@@ -515,6 +679,8 @@
       const dropZone = document.getElementById("dropZone");
       const helpModal = document.getElementById("helpModal");
       const manualModal = document.getElementById("manualModal");
+      const manualTopics = document.getElementById("manualTopics");
+      const manualSections = [...manualModal.querySelectorAll(".manual-content > section")];
       const registerNamesByArchitecture = {
         i386: ["eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi"],
         x86_64: ["rax", "rbx", "rcx", "rdx", "rsp", "rbp", "rsi", "rdi",
@@ -544,6 +710,7 @@
       let active = false;
       let hasSession = false;
       let busy = false;
+      let canStepOverCall = false;
       let resizeDrag = null;
       let editorSelection = { start: 0, end: 0, direction: "none" };
 
@@ -639,6 +806,31 @@
         messageEl.className = isError ? "error-text" : "";
       }
 
+      function initializeManualTopics() {
+        manualSections.forEach((section, index) => {
+          const heading = section.querySelector("h3");
+          const button = document.createElement("button");
+          const headingId = `manualTopicHeading${index}`;
+          const sectionId = `manualTopicPanel${index}`;
+          button.type = "button";
+          button.textContent = heading.textContent;
+          button.setAttribute("aria-controls", sectionId);
+          button.setAttribute("aria-expanded", index === 0 ? "true" : "false");
+          heading.id = headingId;
+          section.id = sectionId;
+          section.setAttribute("aria-labelledby", headingId);
+          section.hidden = index !== 0;
+          button.addEventListener("click", () => {
+            manualSections.forEach((topic, topicIndex) => {
+              const isSelected = topicIndex === index;
+              topic.hidden = !isSelected;
+              manualTopics.children[topicIndex].setAttribute("aria-expanded", String(isSelected));
+            });
+          });
+          manualTopics.append(button);
+        });
+      }
+
       function currentPanelWidths() {
         return panelElements.map(panel => panel.getBoundingClientRect().width);
       }
@@ -713,8 +905,11 @@
         busy = value;
         buildButton.disabled = value;
         stepButton.disabled = value || !active;
+        stepOverButton.disabled = value || !active || !canStepOverCall;
+        runButton.disabled = value || !active;
         resetButton.disabled = value || !hasSession;
         architectureSelect.disabled = value || active;
+        linkerSelect.disabled = value || active;
       }
 
       function makeRegisterCards(architecture = architectureSelect.value) {
@@ -880,8 +1075,24 @@
         if (current) current.scrollIntoView({ block: "nearest" });
       }
 
+      function renderProgramOutput(text = "") {
+        programOutput.textContent = text || "Program output will appear here as it runs.";
+        programOutput.scrollTop = programOutput.scrollHeight;
+      }
+
+      function currentInstructionIsCall(data) {
+        if (data.pc == null) return false;
+        const pc = asBigInt(data.pc);
+        const current = (data.instructions || []).find(item => asBigInt(item.address) === pc);
+        return Boolean(current && /^\s*call[a-z]*\s/i.test(current.text));
+      }
+
       function showState(data) {
         hasSession = true;
+        canStepOverCall = currentInstructionIsCall(data);
+        stepOverButton.title = canStepOverCall
+          ? "Run this call and pause at the instruction after it returns"
+          : "Available when the current instruction is a call";
         if (data.architecture && architectureSelect.value !== data.architecture) {
           architectureSelect.value = data.architecture;
           makeRegisterCards(data.architecture);
@@ -893,6 +1104,7 @@
           renderFlags(data.registers, data.architecture || architectureSelect.value);
         }
         renderInstructions(data);
+        renderProgramOutput(data.output);
         if (data.status === "signal_exit") {
           active = false;
           setStatus(`Terminated (${data.signal_name || "signal"})`, "error");
@@ -916,34 +1128,56 @@
         setBusy(true);
         showMessage("");
         setStatus("Building…");
+        renderProgramOutput("");
         previousRegisters = null;
         previousFlags = null;
         try {
           const data = await request("/api/build", {
             code: editor.value,
-            architecture: architectureSelect.value
+            architecture: architectureSelect.value,
+            linker: linkerSelect.value
           });
           showState(data);
           showMessage(data.status === "paused" ? "Ready to step" : "");
         } catch (error) {
           active = false;
           hasSession = false;
+          canStepOverCall = false;
           setBusy(false);
           setStatus("Build failed", "error");
           showMessage(error.message, true);
         }
       }
 
-      async function step() {
+      async function step(overCall = false) {
         if (!active || busy) return;
         setBusy(true);
         showMessage("");
         try {
-          showState(await request("/api/step"));
+          showState(await request(overCall ? "/api/step-over" : "/api/step"));
         } catch (error) {
           active = false;
+          canStepOverCall = false;
           setBusy(false);
           setStatus("Debugger error", "error");
+          showMessage(error.message, true);
+        }
+      }
+
+      async function runToExit() {
+        if (!active || busy) return;
+        setBusy(true);
+        showMessage("");
+        setStatus("Running…", "live");
+        try {
+          showState(await request("/api/run"));
+          if (active) showMessage("Program stopped before exit");
+        } catch (error) {
+          active = false;
+          hasSession = false;
+          canStepOverCall = false;
+          setBusy(false);
+          setStatus("Run failed", "error");
           showMessage(error.message, true);
         }
       }
@@ -955,10 +1189,12 @@
           await request("/api/reset");
           active = false;
           hasSession = false;
+          canStepOverCall = false;
           previousRegisters = null;
           previousFlags = null;
           makeRegisterCards();
           instructionsEl.innerHTML = '<div class="empty-state">Build a program to see its instructions.</div>';
+          renderProgramOutput("");
           pcLabel.textContent = architectureSelect.value === "x86_64" ? "RIP —" : "EIP —";
           showMessage("");
           setStatus("Ready");
@@ -972,6 +1208,8 @@
 
       buildButton.addEventListener("click", build);
       stepButton.addEventListener("click", step);
+      stepOverButton.addEventListener("click", () => step(true));
+      runButton.addEventListener("click", runToExit);
       resetButton.addEventListener("click", reset);
       for (const eventName of ["click", "keyup", "select", "input", "focusout"]) {
         editor.addEventListener(eventName, rememberEditorSelection);
@@ -992,6 +1230,7 @@
         if (event.target === helpModal) helpModal.classList.remove("open");
       });
       document.getElementById("manualButton").addEventListener("click", () => manualModal.classList.add("open"));
+      initializeManualTopics();
       for (const id of ["closeManual", "closeManualTop"]) {
         document.getElementById(id).addEventListener("click", () => manualModal.classList.remove("open"));
       }
