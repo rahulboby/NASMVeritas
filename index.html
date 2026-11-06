@@ -90,10 +90,29 @@
     .panel-title { font-size: 13px; font-weight: 650; }
     .panel-hint { color: var(--muted); font-size: 11px; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    .editor-wrap { flex: 1 1 auto; min-height: 0; position: relative; }
+    .editor-wrap {
+      --editor-line-height: 22.75px;
+      display: flex; flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden;
+    }
+    .editor-gutter {
+      position: relative; z-index: 1; flex: 0 0 48px; overflow: hidden;
+      border-right: 1px solid #2b3034; background: #171a1d; color: #647082;
+      text-align: right; user-select: none; pointer-events: none;
+    }
+    #lineNumbers {
+      position: absolute; top: 0; right: 0; left: 0; padding-top: 18px;
+      font: 13px/var(--editor-line-height) ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .line-number { display: block; height: var(--editor-line-height); padding-right: 10px; }
+    .line-number.current { color: #a7b3c2; }
+    #currentLineHighlight {
+      position: absolute; z-index: 0; left: 48px; right: 0; height: var(--editor-line-height);
+      background: #ffffff08; pointer-events: none;
+    }
     #editor {
-      width: 100%; height: 100%; resize: none; display: block; padding: 18px 20px;
-      border: 0; outline: 0; background: #171a1d; color: #d7e5f7;
+      position: relative; z-index: 1; flex: 1 1 auto; width: 0; height: 100%;
+      resize: none; display: block; padding: 18px 20px 18px 16px;
+      border: 0; outline: 0; background: transparent; color: #d7e5f7;
       font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       tab-size: 4; white-space: pre; overflow: auto;
     }
@@ -344,6 +363,8 @@
       <section class="panel" id="sourcePanel">
         <div class="panel-head"><span class="panel-title">Assembly source</span><span class="panel-hint">NASM · Intel syntax</span></div>
         <div class="editor-wrap" id="dropZone">
+          <div class="editor-gutter" aria-hidden="true"><div id="lineNumbers"></div></div>
+          <div id="currentLineHighlight" aria-hidden="true"></div>
           <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Assembly source code"></textarea>
         </div>
         <div class="editor-footer"><span>Drop a <code>.s</code> file here to load it</span><span>Tab / Shift+Tab to indent · Ctrl/⌘ + Z to undo</span></div>
@@ -642,6 +663,8 @@
   <script>
     (() => {
       const editor = document.getElementById("editor");
+      const lineNumbers = document.getElementById("lineNumbers");
+      const currentLineHighlight = document.getElementById("currentLineHighlight");
       const registersEl = document.getElementById("registers");
       const instructionsEl = document.getElementById("instructions");
       const stepButton = document.getElementById("stepButton");
@@ -712,7 +735,38 @@
       let busy = false;
       let canStepOverCall = false;
       let resizeDrag = null;
+      let highlightedLineNumber = null;
       let editorSelection = { start: 0, end: 0, direction: "none" };
+
+      function updateEditorLineNumbers() {
+        const fragment = document.createDocumentFragment();
+        const lineCount = editor.value.split("\n").length;
+        for (let line = 1; line <= lineCount; line++) {
+          const number = document.createElement("span");
+          number.className = "line-number";
+          number.textContent = line;
+          fragment.append(number);
+        }
+        lineNumbers.replaceChildren(fragment);
+        highlightedLineNumber = null;
+        updateEditorCursorLine();
+      }
+
+      function updateEditorCursorLine() {
+        const lineIndex = editor.value.slice(0, editor.selectionStart).split("\n").length - 1;
+        const lineNumber = lineNumbers.children[lineIndex];
+        if (highlightedLineNumber !== lineNumber) {
+          highlightedLineNumber?.classList.remove("current");
+          lineNumber?.classList.add("current");
+          highlightedLineNumber = lineNumber || null;
+        }
+        const styles = getComputedStyle(editor);
+        const lineHeight = Number.parseFloat(styles.lineHeight);
+        const paddingTop = Number.parseFloat(styles.paddingTop);
+        currentLineHighlight.style.top =
+          `${paddingTop + lineIndex * lineHeight - editor.scrollTop}px`;
+        lineNumbers.style.transform = `translateY(${-editor.scrollTop}px)`;
+      }
 
       function rememberEditorSelection() {
         editorSelection = {
@@ -744,6 +798,7 @@
         if (!outdent && selectionStart === selectionEnd) {
           replaceEditorText("\t", selectionStart, selectionEnd);
           editor.setSelectionRange(selectionStart + 1, selectionStart + 1);
+          updateEditorCursorLine();
           rememberEditorSelection();
           return;
         }
@@ -793,6 +848,7 @@
           adjustOffset(selectionEnd),
           selectionDirection
         );
+        updateEditorLineNumbers();
         rememberEditorSelection();
       }
 
@@ -1213,8 +1269,14 @@
       resetButton.addEventListener("click", reset);
       for (const eventName of ["click", "keyup", "select", "input", "focusout"]) {
         editor.addEventListener(eventName, rememberEditorSelection);
+        editor.addEventListener(eventName, updateEditorCursorLine);
       }
-      editor.addEventListener("focus", restoreEditorSelection);
+      editor.addEventListener("input", updateEditorLineNumbers);
+      editor.addEventListener("scroll", updateEditorCursorLine);
+      editor.addEventListener("focus", () => {
+        restoreEditorSelection();
+        updateEditorCursorLine();
+      });
       translatorValue.addEventListener("input", translateNumber);
       translatorBase.addEventListener("change", translateNumber);
       translatorBits.addEventListener("change", translateNumber);
@@ -1289,6 +1351,7 @@
         try {
           editor.value = await file.text();
           editor.setSelectionRange(editor.value.length, editor.value.length);
+          updateEditorLineNumbers();
           rememberEditorSelection();
           showMessage(`Loaded ${file.name}`);
         } catch (error) {
@@ -1296,6 +1359,7 @@
         }
       });
 
+      updateEditorLineNumbers();
       makeRegisterCards();
       translateNumber();
       updateSplitterValues();
